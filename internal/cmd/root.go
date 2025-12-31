@@ -94,7 +94,7 @@ func init() {
 	rootCmd.AddCommand(postsCmd)
 	rootCmd.AddCommand(newRateLimitCmd())
 	rootCmd.AddCommand(repliesCmd)
-	rootCmd.AddCommand(searchCmd)
+	rootCmd.AddCommand(newSearchCmd())
 	rootCmd.AddCommand(usersCmd)
 	rootCmd.AddCommand(versionCmd)
 }
