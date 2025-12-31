@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -26,6 +28,15 @@ var (
 	postsReplyTo  string
 )
 
+// Carousel command flags
+var (
+	carouselItems       []string
+	carouselText        string
+	carouselAltTexts    []string
+	carouselReplyTo     string
+	carouselWaitTimeout int
+)
+
 func init() {
 	// Create command flags
 	postsCreateCmd.Flags().StringVarP(&postsText, "text", "t", "", "Post text content")
@@ -34,10 +45,19 @@ func init() {
 	postsCreateCmd.Flags().StringVar(&postsAltText, "alt-text", "", "Alt text for media accessibility")
 	postsCreateCmd.Flags().StringVar(&postsReplyTo, "reply-to", "", "Post ID to reply to")
 
+	// Carousel command flags
+	postsCarouselCmd.Flags().StringSliceVar(&carouselItems, "items", nil, "Media URLs (comma-separated)")
+	postsCarouselCmd.Flags().StringVar(&carouselText, "text", "", "Caption text")
+	postsCarouselCmd.Flags().StringSliceVar(&carouselAltTexts, "alt-text", nil, "Alt text for each item (in order)")
+	postsCarouselCmd.Flags().StringVar(&carouselReplyTo, "reply-to", "", "Post ID to reply to")
+	postsCarouselCmd.Flags().IntVar(&carouselWaitTimeout, "timeout", 300, "Timeout in seconds for container processing")
+	_ = postsCarouselCmd.MarkFlagRequired("items")
+
 	postsCmd.AddCommand(postsCreateCmd)
 	postsCmd.AddCommand(postsGetCmd)
 	postsCmd.AddCommand(postsListCmd)
 	postsCmd.AddCommand(postsDeleteCmd)
+	postsCmd.AddCommand(postsCarouselCmd)
 }
 
 var postsCreateCmd = &cobra.Command{
@@ -319,4 +339,132 @@ func runPostsDelete(cmd *cobra.Command, args []string) error {
 
 	ui.Success("Post deleted successfully")
 	return nil
+}
+
+var postsCarouselCmd = &cobra.Command{
+	Use:   "carousel",
+	Short: "Create a carousel post with multiple images/videos",
+	Long: `Create a carousel post with 2-20 media items.
+
+Each item should be a URL to an image or video. Alt text can be provided
+for accessibility using --alt-text (one per item, in order).`,
+	Example: `  # Create carousel with 3 images
+  threads posts carousel --items url1,url2,url3
+
+  # With caption and alt text
+  threads posts carousel --items url1,url2 --text "My photos" --alt-text "First" --alt-text "Second"`,
+	RunE: runPostsCarousel,
+}
+
+func runPostsCarousel(cmd *cobra.Command, args []string) error {
+	// Validate: 2-20 items required
+	if len(carouselItems) < 2 {
+		return fmt.Errorf("carousel requires at least 2 items")
+	}
+	if len(carouselItems) > 20 {
+		return fmt.Errorf("carousel supports maximum 20 items")
+	}
+
+	ctx := cmd.Context()
+	client, err := getClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Create media containers for each item
+	var containerIDs []string
+	for i, itemURL := range carouselItems {
+		var altText string
+		if i < len(carouselAltTexts) {
+			altText = carouselAltTexts[i]
+		}
+
+		// Detect media type from URL
+		mediaType := detectMediaType(itemURL)
+		containerID, err := client.CreateMediaContainer(ctx, mediaType, itemURL, altText)
+		if err != nil {
+			return fmt.Errorf("failed to create container for item %d: %w", i+1, err)
+		}
+
+		// Wait for container to be ready
+		if err := waitForContainer(ctx, client, containerID, carouselWaitTimeout); err != nil {
+			return fmt.Errorf("container %d not ready: %w", i+1, err)
+		}
+
+		containerIDs = append(containerIDs, string(containerID))
+	}
+
+	// Build carousel content
+	content := &threads.CarouselPostContent{
+		Text:     carouselText,
+		Children: containerIDs,
+	}
+	if carouselReplyTo != "" {
+		content.ReplyTo = carouselReplyTo
+	}
+
+	post, err := client.CreateCarouselPost(ctx, content)
+	if err != nil {
+		return fmt.Errorf("failed to create carousel post: %w", err)
+	}
+
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSON(post, jqQuery)
+	}
+
+	ui.Success("Carousel post created successfully!")
+	fmt.Printf("  ID:        %s\n", post.ID)
+	fmt.Printf("  Permalink: %s\n", post.Permalink)
+	if post.Text != "" {
+		text := post.Text
+		if len(text) > 50 {
+			text = text[:50] + "..."
+		}
+		fmt.Printf("  Text:      %s\n", text)
+	}
+	fmt.Printf("  Items:     %d\n", len(containerIDs))
+
+	return nil
+}
+
+// detectMediaType determines if URL is image or video based on file extension
+func detectMediaType(url string) string {
+	lower := strings.ToLower(url)
+	videoExts := []string{".mp4", ".mov", ".m4v", ".webm"}
+	for _, ext := range videoExts {
+		if strings.Contains(lower, ext) {
+			return "VIDEO"
+		}
+	}
+	return "IMAGE"
+}
+
+// waitForContainer polls container status until ready or timeout
+func waitForContainer(ctx context.Context, client *threads.Client, containerID threads.ContainerID, timeoutSecs int) error {
+	timeout := time.After(time.Duration(timeoutSecs) * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for container to be ready")
+		case <-ticker.C:
+			status, err := client.GetContainerStatus(ctx, containerID)
+			if err != nil {
+				return err
+			}
+			switch status.Status {
+			case "FINISHED":
+				return nil
+			case "ERROR":
+				return fmt.Errorf("container error: %s", status.ErrorMessage)
+			case "EXPIRED":
+				return fmt.Errorf("container expired")
+			}
+			// Still IN_PROGRESS, continue waiting
+		}
+	}
 }
