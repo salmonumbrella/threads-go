@@ -41,7 +41,7 @@ func ConfirmOrYes(ctx context.Context, prompt string) (bool, error) {
 	io := iocontext.GetIO(ctx)
 
 	// Write prompt to stderr
-	fmt.Fprintf(io.ErrOut, "%s [y/N]: ", prompt)
+	fmt.Fprintf(io.ErrOut, "%s [y/N]: ", prompt) //nolint:errcheck // Best-effort output to stderr
 
 	// Read response from stdin
 	reader := bufio.NewReader(io.In)

@@ -182,7 +182,6 @@ func TestIntegration_PostOperations(t *testing.T) {
 		posts, err := client.GetUserPosts(context.Background(), threads.ConvertToUserID(testUserID), &threads.PaginationOptions{
 			Limit: 5,
 		})
-
 		if err != nil {
 			t.Errorf("GetUserPosts failed: %v", err)
 			return
@@ -771,7 +770,6 @@ func TestIntegration_GhostPosts(t *testing.T) {
 		posts, err := client.GetUserGhostPosts(context.Background(), threads.ConvertToUserID(testUserID), &threads.PaginationOptions{
 			Limit: 5,
 		})
-
 		if err != nil {
 			t.Errorf("GetUserGhostPosts failed: %v", err)
 			return

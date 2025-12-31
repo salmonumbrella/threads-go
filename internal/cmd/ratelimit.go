@@ -75,7 +75,7 @@ func newRateLimitPublishingCmd() *cobra.Command {
 
 			limits, err := client.GetPublishingLimits(cmd.Context())
 			if err != nil {
-				return err
+				return WrapError("failed to get publishing limits", err)
 			}
 
 			if outfmt.IsJSON(cmd.Context()) {

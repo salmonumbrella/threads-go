@@ -43,5 +43,5 @@ func CacheDir() string {
 
 // EnsureConfigDir creates the config directory if it doesn't exist
 func EnsureConfigDir() error {
-	return os.MkdirAll(ConfigDir(), 0700)
+	return os.MkdirAll(ConfigDir(), 0o700)
 }

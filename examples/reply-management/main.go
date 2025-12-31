@@ -195,7 +195,6 @@ func retrieveReplies(client *threads.Client, postID string) {
 	repliesResp, err := client.GetReplies(context.Background(), threads.ConvertToPostID(postID), &threads.RepliesOptions{
 		Limit: 25,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to retrieve replies: %v\n", err)
 		return
@@ -254,7 +253,6 @@ func getConversation(client *threads.Client, postID string) {
 	conversationResp, err := client.GetConversation(context.Background(), threads.ConvertToPostID(postID), &threads.RepliesOptions{
 		Limit: 50,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to retrieve conversation: %v\n", err)
 		return
@@ -326,7 +324,6 @@ func getUserReplyHistory(client *threads.Client, userID string) {
 	repliesResp, err := client.GetUserReplies(context.Background(), threads.ConvertToUserID(userID), &threads.PostsOptions{
 		Limit: 20,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to retrieve user replies: %v\n", err)
 		return
@@ -376,7 +373,6 @@ func demonstrateAdvancedReplyFeatures(client *threads.Client, postID string) {
 	firstPage, err := client.GetReplies(context.Background(), threads.ConvertToPostID(postID), &threads.RepliesOptions{
 		Limit: 2, // Small limit to test pagination
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to get first page: %v\n", err)
 		return

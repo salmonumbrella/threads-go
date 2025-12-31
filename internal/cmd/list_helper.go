@@ -77,7 +77,7 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 
 			// Handle empty results in text mode
 			if len(result.Items) == 0 {
-				fmt.Fprintln(io.Out, cfg.EmptyMessage)
+				fmt.Fprintln(io.Out, cfg.EmptyMessage) //nolint:errcheck // Best-effort output to stdout
 				return nil
 			}
 
@@ -95,7 +95,7 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 
 			// Show pagination hint on stderr if there are more results
 			if result.HasMore && result.Cursor != "" {
-				fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", result.Cursor)
+				fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", result.Cursor) //nolint:errcheck // Best-effort output to stderr
 			}
 
 			return nil
@@ -117,7 +117,9 @@ type listJSONOutput struct {
 }
 
 // outputListJSON outputs the list result as JSON
-func outputListJSON[T any](io *iocontext.IO, result ListResult[T], requestCursor string) error {
+//
+//nolint:unparam // requestCursor reserved for future pagination features
+func outputListJSON[T any](io *iocontext.IO, result ListResult[T], _ string) error {
 	output := listJSONOutput{
 		Items:   result.Items,
 		HasMore: result.HasMore,

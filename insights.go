@@ -25,6 +25,10 @@ const (
 	PostInsightQuotes PostInsightMetric = "quotes"
 	// PostInsightShares represents the number of times a post was shared
 	PostInsightShares PostInsightMetric = "shares"
+	// PostInsightLinkClicks represents the number of clicks on links in the post
+	PostInsightLinkClicks PostInsightMetric = "link_clicks"
+	// PostInsightProfileClicks represents the number of clicks on the profile from the post
+	PostInsightProfileClicks PostInsightMetric = "profile_clicks"
 )
 
 // AccountInsightMetric represents available account insight metrics
@@ -383,12 +387,14 @@ func (c *Client) GetAccountInsightsWithOptions(ctx context.Context, userID UserI
 // validatePostInsightMetric validates if the provided metric is supported for post insights
 func (c *Client) validatePostInsightMetric(metric string) error {
 	validMetrics := map[string]bool{
-		string(PostInsightViews):   true,
-		string(PostInsightLikes):   true,
-		string(PostInsightReplies): true,
-		string(PostInsightReposts): true,
-		string(PostInsightQuotes):  true,
-		string(PostInsightShares):  true,
+		string(PostInsightViews):         true,
+		string(PostInsightLikes):         true,
+		string(PostInsightReplies):       true,
+		string(PostInsightReposts):       true,
+		string(PostInsightQuotes):        true,
+		string(PostInsightShares):        true,
+		string(PostInsightLinkClicks):    true,
+		string(PostInsightProfileClicks): true,
 	}
 
 	if !validMetrics[metric] {
@@ -461,6 +467,8 @@ func (c *Client) GetAvailablePostInsightMetrics() []PostInsightMetric {
 		PostInsightReposts,
 		PostInsightQuotes,
 		PostInsightShares,
+		PostInsightLinkClicks,
+		PostInsightProfileClicks,
 	}
 }
 

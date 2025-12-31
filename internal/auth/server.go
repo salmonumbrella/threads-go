@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -47,6 +46,7 @@ type OAuthServer struct {
 func NewOAuthServer(clientID, clientSecret, redirectURI string, scopes []string) *OAuthServer {
 	// Generate CSRF token
 	tokenBytes := make([]byte, 32)
+	//nolint:errcheck,gosec // crypto/rand.Read never returns an error on supported systems
 	rand.Read(tokenBytes)
 
 	return &OAuthServer{
@@ -74,7 +74,7 @@ func (s *OAuthServer) Start(ctx context.Context) (*OAuthResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start server: %w", err)
 	}
-	defer listener.Close()
+	defer listener.Close() //nolint:errcheck // Best-effort cleanup
 
 	port := listener.Addr().(*net.TCPAddr).Port
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -117,15 +117,19 @@ func (s *OAuthServer) Start(ctx context.Context) (*OAuthResult, error) {
 	// Wait for result or context cancellation
 	select {
 	case result := <-s.result:
+		//nolint:errcheck,gosec // Shutdown errors are not actionable here
 		server.Shutdown(context.Background())
 		return result, nil
 	case err := <-s.errChan:
+		//nolint:errcheck,gosec // Shutdown errors are not actionable here
 		server.Shutdown(context.Background())
 		return nil, err
 	case <-ctx.Done():
+		//nolint:errcheck,gosec // Shutdown errors are not actionable here
 		server.Shutdown(context.Background())
 		return nil, ctx.Err()
 	case <-s.shutdown:
+		//nolint:errcheck,gosec // Shutdown errors are not actionable here
 		server.Shutdown(context.Background())
 		return nil, fmt.Errorf("authentication cancelled")
 	}
@@ -212,14 +216,14 @@ func (s *OAuthServer) exchangeCodeForToken(code string) (*OAuthResult, error) {
 	defer cancel()
 
 	// Exchange code for token
-	if err := client.ExchangeCodeForToken(ctx, code); err != nil {
-		return nil, fmt.Errorf("failed to exchange code: %w", err)
+	if errExchange := client.ExchangeCodeForToken(ctx, code); errExchange != nil {
+		return nil, fmt.Errorf("failed to exchange code: %w", errExchange)
 	}
 
 	// Convert to long-lived token
-	if err := client.GetLongLivedToken(ctx); err != nil {
+	if errLongLived := client.GetLongLivedToken(ctx); errLongLived != nil {
 		// Non-fatal - we can continue with short-lived token
-		slog.Warn("failed to get long-lived token, using short-lived", "error", err)
+		slog.Warn("failed to get long-lived token, using short-lived", "error", errLongLived)
 	}
 
 	// Get user info
@@ -243,6 +247,7 @@ func (s *OAuthServer) handleSuccess(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'")
 
 	tmpl := template.Must(template.New("success").Parse(successTemplate))
+	//nolint:errcheck,gosec // Best-effort template render to browser
 	tmpl.Execute(w, nil)
 }
 
@@ -261,13 +266,6 @@ func openBrowser(url string) error {
 	}
 
 	return cmd.Start()
-}
-
-// writeJSON writes a JSON response
-func writeJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
 }
 
 const successTemplate = `<!DOCTYPE html>

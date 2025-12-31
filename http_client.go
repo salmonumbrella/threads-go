@@ -197,16 +197,16 @@ func (h *HTTPClient) executeRequest(opts *RequestOptions, accessToken string) (*
 		return nil, h.wrapNetworkError(err)
 	}
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			h.logger.Error("Failed to close response body", "error", err)
+		errClose := Body.Close()
+		if errClose != nil {
+			h.logger.Error("Failed to close response body", "error", errClose)
 		}
 	}(httpResp.Body)
 
 	// Read response body
-	respBody, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	respBody, errRead := io.ReadAll(httpResp.Body)
+	if errRead != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", errRead)
 	}
 
 	// Create response wrapper

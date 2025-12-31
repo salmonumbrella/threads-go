@@ -83,7 +83,7 @@ func (f *FileTokenStorage) Store(token *threads.TokenInfo) error {
 		token.UserID,
 		token.CreatedAt.Format(time.RFC3339))
 
-	return os.WriteFile(f.filepath, []byte(content), 0600)
+	return os.WriteFile(f.filepath, []byte(content), 0o600)
 }
 
 func (f *FileTokenStorage) Load() (*threads.TokenInfo, error) {

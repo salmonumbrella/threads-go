@@ -227,7 +227,8 @@ func (m *MemoryTokenStorage) Delete() error {
 // NewConfig creates a new configuration with sensible defaults.
 func NewConfig() *Config {
 	return &Config{
-		Scopes: []string{"threads_basic",
+		Scopes: []string{
+			"threads_basic",
 			"threads_content_publish",
 			"threads_manage_replies",
 			"threads_manage_insights",
@@ -236,7 +237,8 @@ func NewConfig() *Config {
 			"threads_keyword_search",
 			"threads_delete",
 			"threads_location_tagging",
-			"threads_profile_discovery"},
+			"threads_profile_discovery",
+		},
 		HTTPTimeout: 30 * time.Second,
 		RetryConfig: &RetryConfig{
 			MaxRetries:    3,
@@ -522,19 +524,19 @@ func NewClientWithToken(accessToken string, config *Config) (*Client, error) {
 		CreatedAt:   time.Now(),
 	}
 
-	if err := client.SetTokenInfo(tempTokenInfo); err != nil {
-		return nil, fmt.Errorf("failed to set temporary token: %w", err)
+	if errToken := client.SetTokenInfo(tempTokenInfo); errToken != nil {
+		return nil, fmt.Errorf("failed to set temporary token: %w", errToken)
 	}
 
 	// Validate and get accurate token information
-	debugResp, err := client.DebugToken(context.Background(), accessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate token: %w", err)
+	debugResp, errDebug := client.DebugToken(context.Background(), accessToken)
+	if errDebug != nil {
+		return nil, fmt.Errorf("failed to validate token: %w", errDebug)
 	}
 
 	// Set accurate token information from debug response
-	if err := client.SetTokenFromDebugInfo(accessToken, debugResp); err != nil {
-		return nil, fmt.Errorf("failed to set token info: %w", err)
+	if errTokenInfo := client.SetTokenFromDebugInfo(accessToken, debugResp); errTokenInfo != nil {
+		return nil, fmt.Errorf("failed to set token info: %w", errTokenInfo)
 	}
 
 	return client, nil

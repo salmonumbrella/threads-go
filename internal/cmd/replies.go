@@ -76,6 +76,7 @@ func init() {
 
 	// Create flags
 	repliesCreateCmd.Flags().StringVarP(&replyText, "text", "t", "", "Text content for the reply (required)")
+	//nolint:errcheck,gosec // MarkFlagRequired cannot fail for a flag that exists
 	repliesCreateCmd.MarkFlagRequired("text")
 
 	// Conversation flags
@@ -103,7 +104,7 @@ func runRepliesList(cmd *cobra.Command, args []string) error {
 
 	replies, err := client.GetReplies(cmd.Context(), threads.PostID(postID), opts)
 	if err != nil {
-		return fmt.Errorf("failed to get replies: %w", err)
+		return WrapError("failed to get replies", err)
 	}
 
 	ctx := cmd.Context()
@@ -140,7 +141,10 @@ func runRepliesCreate(cmd *cobra.Command, args []string) error {
 	postID := args[0]
 
 	if replyText == "" {
-		return fmt.Errorf("reply text is required (use --text flag)")
+		return &UserFriendlyError{
+			Message:    "Reply text is required",
+			Suggestion: "Use the --text flag to provide your reply content",
+		}
 	}
 
 	client, err := getClient(cmd.Context())
@@ -154,7 +158,7 @@ func runRepliesCreate(cmd *cobra.Command, args []string) error {
 
 	reply, err := client.ReplyToPost(cmd.Context(), threads.PostID(postID), content)
 	if err != nil {
-		return fmt.Errorf("failed to create reply: %w", err)
+		return WrapError("failed to create reply", err)
 	}
 
 	ctx := cmd.Context()
@@ -179,7 +183,7 @@ func runRepliesHide(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := client.HideReply(cmd.Context(), threads.PostID(replyID)); err != nil {
-		return fmt.Errorf("failed to hide reply: %w", err)
+		return WrapError("failed to hide reply", err)
 	}
 
 	ctx := cmd.Context()
@@ -205,7 +209,7 @@ func runRepliesUnhide(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := client.UnhideReply(cmd.Context(), threads.PostID(replyID)); err != nil {
-		return fmt.Errorf("failed to unhide reply: %w", err)
+		return WrapError("failed to unhide reply", err)
 	}
 
 	ctx := cmd.Context()
@@ -237,7 +241,7 @@ func runRepliesConversation(cmd *cobra.Command, args []string) error {
 
 	conversation, err := client.GetConversation(cmd.Context(), threads.PostID(postID), opts)
 	if err != nil {
-		return fmt.Errorf("failed to get conversation: %w", err)
+		return WrapError("failed to get conversation", err)
 	}
 
 	ctx := cmd.Context()

@@ -153,7 +153,6 @@ func demonstratePostInsights(client *threads.Client, userID string) {
 	posts, err := client.GetUserPosts(ctx, userIDTyped, &threads.PaginationOptions{
 		Limit: 5,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to get user posts: %v\n", err)
 		return
@@ -183,7 +182,6 @@ func demonstratePostInsights(client *threads.Client, userID string) {
 		insights, err := client.GetPostInsights(context.Background(), threads.ConvertToPostID(post.ID), []string{
 			"views", "likes", "replies", "reposts",
 		})
-
 		if err != nil {
 			fmt.Printf("    Failed to get insights: %v\n", err)
 			continue
@@ -210,7 +208,6 @@ func demonstrateAdvancedPostInsights(client *threads.Client, userID string) {
 	posts, err := client.GetUserPosts(ctx, userIDTyped, &threads.PaginationOptions{
 		Limit: 3,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to get user posts: %v\n", err)
 		return
@@ -239,12 +236,13 @@ func demonstrateAdvancedPostInsights(client *threads.Client, userID string) {
 			threads.PostInsightReposts,
 			threads.PostInsightQuotes,
 			threads.PostInsightShares,
+			threads.PostInsightLinkClicks,
+			threads.PostInsightProfileClicks,
 		},
 		Period: threads.InsightPeriodLifetime,
 		Since:  &since,
 		Until:  &until,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to get advanced insights: %v\n", err)
 		return
@@ -284,7 +282,6 @@ func demonstrateAccountInsights(client *threads.Client, userID string) {
 	insights, err := client.GetAccountInsights(context.Background(), threads.ConvertToUserID(userID), []string{
 		"views", "likes", "replies", "reposts",
 	}, "lifetime")
-
 	if err != nil {
 		fmt.Printf(" Failed to get account insights: %v\n", err)
 		return
@@ -328,7 +325,6 @@ func demonstrateAdvancedAccountInsights(client *threads.Client, userID string) {
 		Since:  &since,
 		Until:  &until,
 	})
-
 	if err != nil {
 		fmt.Printf(" Failed to get advanced account insights: %v\n", err)
 		return
@@ -372,7 +368,6 @@ func demonstrateFollowerDemographics(client *threads.Client, userID string) {
 			Period:    threads.InsightPeriodLifetime,
 			Breakdown: breakdown,
 		})
-
 		if err != nil {
 			fmt.Printf("    Failed to get %s demographics: %v\n", breakdown, err)
 			continue
@@ -502,7 +497,6 @@ func demonstrateInsightsErrorHandling(client *threads.Client) {
 		Since:   &since,
 		Until:   &until,
 	})
-
 	if err != nil {
 		fmt.Printf(" Correctly caught error: %v\n", err)
 		if threads.IsValidationError(err) {

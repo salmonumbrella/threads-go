@@ -288,27 +288,27 @@ func FromContext(ctx context.Context, opts ...OutputOption) *Formatter {
 func (f *Formatter) Header(cols ...string) {
 	for i, col := range cols {
 		if i > 0 {
-			fmt.Fprint(f.w, "\t")
+			fmt.Fprint(f.w, "\t") //nolint:errcheck // Best-effort output
 		}
-		fmt.Fprint(f.w, col)
+		fmt.Fprint(f.w, col) //nolint:errcheck // Best-effort output
 	}
-	fmt.Fprintln(f.w)
+	fmt.Fprintln(f.w) //nolint:errcheck // Best-effort output
 }
 
 // Row writes a data row
 func (f *Formatter) Row(cols ...any) {
 	for i, col := range cols {
 		if i > 0 {
-			fmt.Fprint(f.w, "\t")
+			fmt.Fprint(f.w, "\t") //nolint:errcheck // Best-effort output
 		}
-		fmt.Fprint(f.w, col)
+		fmt.Fprint(f.w, col) //nolint:errcheck // Best-effort output
 	}
-	fmt.Fprintln(f.w)
+	fmt.Fprintln(f.w) //nolint:errcheck // Best-effort output
 }
 
 // Flush writes all buffered output
 func (f *Formatter) Flush() {
-	f.w.Flush()
+	f.w.Flush() //nolint:errcheck,gosec // Best-effort flush
 }
 
 // colorEnabled checks if color output is enabled
@@ -410,25 +410,25 @@ func (f *Formatter) tableText(headers []string, rows [][]string, colTypes []Colu
 	// Write headers
 	for i, header := range headers {
 		if i > 0 {
-			fmt.Fprint(f.w, "\t")
+			fmt.Fprint(f.w, "\t") //nolint:errcheck // Best-effort output
 		}
-		fmt.Fprint(f.w, header)
+		fmt.Fprint(f.w, header) //nolint:errcheck // Best-effort output
 	}
-	fmt.Fprintln(f.w)
+	fmt.Fprintln(f.w) //nolint:errcheck // Best-effort output
 
 	// Write rows with optional colorization
 	for _, row := range rows {
 		for i, cell := range row {
 			if i > 0 {
-				fmt.Fprint(f.w, "\t")
+				fmt.Fprint(f.w, "\t") //nolint:errcheck // Best-effort output
 			}
 			// Apply column type formatting if provided
 			if colTypes != nil && i < len(colTypes) {
 				cell = formatColumn(cell, colTypes[i], colorOn)
 			}
-			fmt.Fprint(f.w, cell)
+			fmt.Fprint(f.w, cell) //nolint:errcheck // Best-effort output
 		}
-		fmt.Fprintln(f.w)
+		fmt.Fprintln(f.w) //nolint:errcheck // Best-effort output
 	}
 
 	return f.w.Flush()
@@ -447,7 +447,7 @@ func (f *Formatter) Output(data any) error {
 	}
 
 	// For text output, just print the value
-	fmt.Fprintln(f.out, data)
+	fmt.Fprintln(f.out, data) //nolint:errcheck // Best-effort output
 	return nil
 }
 
@@ -456,10 +456,11 @@ func (f *Formatter) Empty(msg string) {
 	if IsJSON(f.ctx) {
 		enc := json.NewEncoder(f.out)
 		enc.SetIndent("", "  ")
+		//nolint:errcheck,gosec // Best-effort output for empty JSON array
 		enc.Encode([]any{})
 		return
 	}
-	fmt.Fprintln(f.out, msg)
+	fmt.Fprintln(f.out, msg) //nolint:errcheck // Best-effort output
 }
 
 // Print outputs a simple message

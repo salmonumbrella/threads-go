@@ -47,6 +47,8 @@ integration_local_test.go
 dist/
 tmp/
 temp/
+bin/
+.tools/
 
 # OS
 Thumbs.db

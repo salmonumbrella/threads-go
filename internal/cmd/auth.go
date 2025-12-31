@@ -71,11 +71,11 @@ var authRemoveCmd = &cobra.Command{
 
 // Auth command flags
 var (
-	authAccountName string
-	authClientID    string
+	authAccountName  string
+	authClientID     string
 	authClientSecret string
-	authRedirectURI string
-	authScopes      []string
+	authRedirectURI  string
+	authScopes       []string
 )
 
 func init() {
@@ -121,7 +121,10 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	if clientID == "" || clientSecret == "" {
-		return fmt.Errorf("client ID and secret required. Set via flags or THREADS_CLIENT_ID/THREADS_CLIENT_SECRET")
+		return &UserFriendlyError{
+			Message:    "Client ID and secret are required for authentication",
+			Suggestion: "Set via --client-id and --client-secret flags, or THREADS_CLIENT_ID and THREADS_CLIENT_SECRET environment variables. Get these from the Meta Developer Console",
+		}
 	}
 
 	// Default redirect URI for CLI OAuth
@@ -131,7 +134,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	// Start OAuth server
@@ -142,7 +145,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 
 	result, err := server.Start(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("authentication failed: %w", err)
+		return WrapError("authentication failed", err)
 	}
 
 	// Store credentials
@@ -159,7 +162,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := store.Set(authAccountName, creds); err != nil {
-		return fmt.Errorf("failed to store credentials: %w", err)
+		return WrapError("failed to store credentials", err)
 	}
 
 	ui.Success("Authentication successful!")
@@ -179,7 +182,10 @@ func runAuthToken(cmd *cobra.Command, args []string) error {
 	}
 
 	if token == "" {
-		return fmt.Errorf("access token required as argument or via THREADS_ACCESS_TOKEN")
+		return &UserFriendlyError{
+			Message:    "Access token is required",
+			Suggestion: "Provide the token as an argument or set the THREADS_ACCESS_TOKEN environment variable",
+		}
 	}
 
 	// Get optional client credentials for token refresh capability
@@ -198,29 +204,32 @@ func runAuthToken(cmd *cobra.Command, args []string) error {
 		ClientSecret: clientSecret,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return WrapError("failed to create client", err)
 	}
 
 	// Debug token to get expiry info
 	ctx := cmd.Context()
 	debugInfo, err := client.DebugToken(ctx, "")
 	if err != nil {
-		return fmt.Errorf("token validation failed: %w", err)
+		return WrapError("token validation failed", err)
 	}
 
 	if !debugInfo.Data.IsValid {
-		return fmt.Errorf("token is not valid")
+		return &UserFriendlyError{
+			Message:    "The provided token is not valid",
+			Suggestion: "Ensure the token is correct and has not expired. Get a new token from the Threads API",
+		}
 	}
 
 	// Get user info
 	user, err := client.GetMe(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
+		return WrapError("failed to get user info", err)
 	}
 
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	expiresAt := time.Unix(debugInfo.Data.ExpiresAt, 0)
@@ -236,7 +245,7 @@ func runAuthToken(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := store.Set(authAccountName, creds); err != nil {
-		return fmt.Errorf("failed to store credentials: %w", err)
+		return WrapError("failed to store credentials", err)
 	}
 
 	ui.Success("Token stored successfully!")
@@ -250,21 +259,24 @@ func runAuthToken(cmd *cobra.Command, args []string) error {
 func runAuthRefresh(cmd *cobra.Command, args []string) error {
 	account, err := requireAccount()
 	if err != nil {
-		return err
+		return FormatError(err)
 	}
 
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	creds, err := store.Get(account)
 	if err != nil {
-		return err
+		return FormatError(err)
 	}
 
 	if creds.ClientSecret == "" {
-		return fmt.Errorf("cannot refresh token: client secret not stored. Re-authenticate with 'threads auth login'")
+		return &UserFriendlyError{
+			Message:    "Cannot refresh token: client secret not stored",
+			Suggestion: "Re-authenticate with 'threads auth login' to enable token refresh",
+		}
 	}
 
 	client, err := threads.NewClientWithToken(creds.AccessToken, &threads.Config{
@@ -272,12 +284,12 @@ func runAuthRefresh(cmd *cobra.Command, args []string) error {
 		ClientSecret: creds.ClientSecret,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return WrapError("failed to create client", err)
 	}
 
 	ctx := cmd.Context()
 	if err := client.RefreshToken(ctx); err != nil {
-		return fmt.Errorf("failed to refresh token: %w", err)
+		return WrapError("failed to refresh token", err)
 	}
 
 	// Get new token info
@@ -286,7 +298,7 @@ func runAuthRefresh(cmd *cobra.Command, args []string) error {
 	creds.ExpiresAt = tokenInfo.ExpiresAt
 
 	if err := store.Set(account, *creds); err != nil {
-		return fmt.Errorf("failed to update stored credentials: %w", err)
+		return WrapError("failed to update stored credentials", err)
 	}
 
 	ui.Success("Token refreshed successfully!")
@@ -306,23 +318,23 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	creds, err := store.Get(account)
 	if err != nil {
-		return err
+		return FormatError(err)
 	}
 
 	ctx := cmd.Context()
 
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(map[string]any{
-			"account":    account,
-			"user_id":    creds.UserID,
-			"username":   creds.Username,
-			"expires_at": creds.ExpiresAt,
-			"is_expired": creds.IsExpired(),
+			"account":           account,
+			"user_id":           creds.UserID,
+			"username":          creds.Username,
+			"expires_at":        creds.ExpiresAt,
+			"is_expired":        creds.IsExpired(),
 			"days_until_expiry": creds.DaysUntilExpiry(),
 		}, jqQuery)
 	}
@@ -353,12 +365,12 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 func runAuthList(cmd *cobra.Command, args []string) error {
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	accounts, err := store.List()
 	if err != nil {
-		return fmt.Errorf("failed to list accounts: %w", err)
+		return WrapError("failed to list accounts", err)
 	}
 
 	if len(accounts) == 0 {
@@ -372,6 +384,7 @@ func runAuthList(cmd *cobra.Command, args []string) error {
 	if outfmt.IsJSON(ctx) {
 		var result []map[string]any
 		for _, name := range accounts {
+			//nolint:errcheck // Error means account not found, which we handle by checking creds != nil
 			creds, _ := store.Get(name)
 			if creds != nil {
 				result = append(result, map[string]any{
@@ -391,6 +404,7 @@ func runAuthList(cmd *cobra.Command, args []string) error {
 
 	currentAccount := getAccount()
 	for _, name := range accounts {
+		//nolint:errcheck // Error means account not found, which we handle by checking creds == nil
 		creds, _ := store.Get(name)
 		if creds == nil {
 			continue
@@ -425,12 +439,12 @@ func runAuthRemove(cmd *cobra.Command, args []string) error {
 
 	store, err := getStore()
 	if err != nil {
-		return fmt.Errorf("failed to open credential store: %w", err)
+		return FormatError(err)
 	}
 
 	// Verify account exists
 	if _, err := store.Get(name); err != nil {
-		return err
+		return FormatError(err)
 	}
 
 	if !confirm(fmt.Sprintf("Remove account %q?", name)) {
@@ -439,32 +453,38 @@ func runAuthRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := store.Delete(name); err != nil {
-		return fmt.Errorf("failed to remove account: %w", err)
+		return WrapError("failed to remove account", err)
 	}
 
 	ui.Success("Account %q removed", name)
 	return nil
 }
 
-// getClient returns a Threads API client for the current account
+// getClient returns a Threads API client for the current account.
+// All errors are formatted with user-friendly messages and suggestions.
+//
+//nolint:unparam // ctx is required for interface consistency but not used internally
 func getClient(ctx context.Context) (*threads.Client, error) {
 	account, err := requireAccount()
 	if err != nil {
-		return nil, err
+		return nil, FormatError(err)
 	}
 
 	store, err := getStore()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open credential store: %w", err)
+		return nil, FormatError(err)
 	}
 
 	creds, err := store.Get(account)
 	if err != nil {
-		return nil, err
+		return nil, FormatError(err)
 	}
 
 	if creds.IsExpired() {
-		return nil, fmt.Errorf("token expired. Run 'threads auth refresh' or 'threads auth login'")
+		return nil, &UserFriendlyError{
+			Message:    "Your access token has expired",
+			Suggestion: "Run 'threads auth refresh' to get a new token, or 'threads auth login' to re-authenticate",
+		}
 	}
 
 	client, err := threads.NewClientWithToken(creds.AccessToken, &threads.Config{
@@ -472,7 +492,7 @@ func getClient(ctx context.Context) (*threads.Client, error) {
 		ClientSecret: creds.ClientSecret,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create API client: %w", err)
+		return nil, WrapError("failed to create API client", err)
 	}
 
 	return client, nil

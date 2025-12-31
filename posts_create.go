@@ -37,14 +37,14 @@ func (c *Client) CreateTextPost(ctx context.Context, content *TextPostContent) (
 	}
 
 	// Wait for container to be ready
-	if err := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); err != nil {
-		return nil, fmt.Errorf("container not ready for publishing: %w", err)
+	if errWait := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); errWait != nil {
+		return nil, fmt.Errorf("container not ready for publishing: %w", errWait)
 	}
 
 	// Publish the container
-	post, err := c.publishContainer(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to publish text post: %w", err)
+	post, errPublish := c.publishContainer(ctx, containerID)
+	if errPublish != nil {
+		return nil, fmt.Errorf("failed to publish text post: %w", errPublish)
 	}
 
 	return post, nil
@@ -73,14 +73,14 @@ func (c *Client) CreateImagePost(ctx context.Context, content *ImagePostContent)
 	}
 
 	// Wait for container to be ready
-	if err := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); err != nil {
-		return nil, fmt.Errorf("container not ready for publishing: %w", err)
+	if errWait := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); errWait != nil {
+		return nil, fmt.Errorf("container not ready for publishing: %w", errWait)
 	}
 
 	// Publish the container
-	post, err := c.publishContainer(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to publish image post: %w", err)
+	post, errPublish := c.publishContainer(ctx, containerID)
+	if errPublish != nil {
+		return nil, fmt.Errorf("failed to publish image post: %w", errPublish)
 	}
 
 	return post, nil
@@ -109,14 +109,14 @@ func (c *Client) CreateVideoPost(ctx context.Context, content *VideoPostContent)
 	}
 
 	// Wait for container to be ready
-	if err := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); err != nil {
-		return nil, fmt.Errorf("container not ready for publishing: %w", err)
+	if errWait := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); errWait != nil {
+		return nil, fmt.Errorf("container not ready for publishing: %w", errWait)
 	}
 
 	// Publish the container
-	post, err := c.publishContainer(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to publish video post: %w", err)
+	post, errPublish := c.publishContainer(ctx, containerID)
+	if errPublish != nil {
+		return nil, fmt.Errorf("failed to publish video post: %w", errPublish)
 	}
 
 	return post, nil
@@ -145,14 +145,14 @@ func (c *Client) CreateCarouselPost(ctx context.Context, content *CarouselPostCo
 	}
 
 	// Wait for container to be ready
-	if err := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); err != nil {
-		return nil, fmt.Errorf("container not ready for publishing: %w", err)
+	if errWait := c.waitForContainerReady(ctx, ContainerID(containerID), DefaultContainerPollMaxAttempts, DefaultContainerPollInterval); errWait != nil {
+		return nil, fmt.Errorf("container not ready for publishing: %w", errWait)
 	}
 
 	// Publish the container
-	post, err := c.publishContainer(ctx, containerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to publish carousel post: %w", err)
+	post, errPublish := c.publishContainer(ctx, containerID)
+	if errPublish != nil {
+		return nil, fmt.Errorf("failed to publish carousel post: %w", errPublish)
 	}
 
 	return post, nil
@@ -237,6 +237,46 @@ func (c *Client) RepostPost(ctx context.Context, postID PostID) (*Post, error) {
 
 	// Fetch the created repost details
 	return c.GetPost(ctx, ConvertToPostID(repostResp.ID))
+}
+
+// UnrepostPost removes a repost on Threads
+// The repostID parameter should be the ID of the repost (not the original post)
+func (c *Client) UnrepostPost(ctx context.Context, repostID PostID) error {
+	if !repostID.Valid() {
+		return NewValidationError(400, ErrEmptyPostID, "Cannot unrepost without a repost ID", "repost_id")
+	}
+
+	// Ensure we have a valid token
+	if err := c.EnsureValidToken(ctx); err != nil {
+		return err
+	}
+
+	// Use the unrepost endpoint
+	path := fmt.Sprintf("/%s/unrepost", repostID.String())
+	resp, err := c.httpClient.DELETE(path, c.getAccessTokenSafe())
+	if err != nil {
+		return fmt.Errorf("failed to unrepost: %w", err)
+	}
+
+	// Handle specific error cases
+	if resp.StatusCode == 404 {
+		return NewValidationError(404, "Repost not found", fmt.Sprintf("Repost with ID %s does not exist or is not accessible", repostID.String()), "repost_id")
+	}
+
+	if resp.StatusCode == 403 {
+		return NewAuthenticationError(403, "Access denied", fmt.Sprintf("Cannot unrepost %s - insufficient permissions or not the repost owner", repostID.String()))
+	}
+
+	if resp.StatusCode != 200 {
+		return c.handleAPIError(resp)
+	}
+
+	// Log successful unrepost if logger is available
+	if c.config.Logger != nil {
+		c.config.Logger.Info("Successfully removed repost", "repost_id", repostID.String())
+	}
+
+	return nil
 }
 
 // CreateMediaContainer creates a media container for use in carousel posts
@@ -564,6 +604,8 @@ func (c *Client) GetContainerStatus(ctx context.Context, containerID ContainerID
 
 // waitForContainerReady polls the container status until it's ready to be published
 // Returns an error if the container fails or times out
+//
+//nolint:unparam // maxAttempts always receives DefaultContainerPollMaxAttempts but keeping for API flexibility
 func (c *Client) waitForContainerReady(ctx context.Context, containerID ContainerID, maxAttempts int, pollInterval time.Duration) error {
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		status, err := c.GetContainerStatus(ctx, containerID)

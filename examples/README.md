@@ -110,13 +110,103 @@ cd ../insights && go run main.go
 
 ## Troubleshooting
 
+### Authentication Issues
+
 - **Invalid credentials**: Check app ID/secret in Meta Developer Console
-- **Redirect URI mismatch**: Ensure URI matches app configuration  
-- **Rate limits**: Client handles automatically with backoff
-- **Timeouts**: Set `THREADS_HTTP_TIMEOUT` if needed
+- **Redirect URI mismatch**: Ensure URI matches app configuration exactly
+- **"Invalid OAuth access token"**: Token may be expired or revoked; re-authenticate
+- **Scopes error**: Ensure your app has the required permissions enabled
+
+### API Errors
+
+- **Rate limits**: Client handles automatically with exponential backoff
+- **Timeouts**: Set `THREADS_HTTP_TIMEOUT` (e.g., `60s`) for slow connections
+- **Container EXPIRED**: Media wasn't published within 24 hours; recreate container
+- **Container ERROR**: Media URL inaccessible or format unsupported
+
+### Media Upload Issues
+
+- Images: JPEG, PNG supported; max 8MB
+- Videos: MP4, MOV supported; max 5 minutes, max 1GB
+- All media URLs must be publicly accessible (no authentication)
+
+### Debug Mode
+
+Enable detailed logging to troubleshoot API issues:
+
+```bash
+export THREADS_DEBUG=true
+go run main.go
+```
+
+## Common Patterns
+
+### Error Handling
+
+```go
+post, err := client.CreateTextPost(ctx, content)
+if err != nil {
+    switch {
+    case threads.IsAuthenticationError(err):
+        // Token invalid or expired
+        log.Fatal("Re-authenticate with threads auth login")
+    case threads.IsRateLimitError(err):
+        // Wait and retry
+        rateLimitErr := err.(*threads.RateLimitError)
+        time.Sleep(rateLimitErr.RetryAfter)
+    case threads.IsValidationError(err):
+        // Fix input
+        validationErr := err.(*threads.ValidationError)
+        log.Printf("Field %s: %s", validationErr.Field, err.Error())
+    default:
+        log.Printf("API error: %v", err)
+    }
+}
+```
+
+### Pagination
+
+```go
+iterator := threads.NewPostIterator(client, userID, &threads.PostsOptions{
+    Limit: 25,
+})
+
+for iterator.HasNext() {
+    response, err := iterator.Next(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    for _, post := range response.Data {
+        fmt.Printf("Post: %s\n", post.Text)
+    }
+}
+```
+
+### Waiting for Media Processing
+
+```go
+// Video and carousel posts require waiting for container processing
+containerID, _ := client.CreateVideoContainer(ctx, videoURL, "Alt text")
+
+// Poll until ready (or use built-in helper)
+for {
+    status, _ := client.GetContainerStatus(ctx, containerID)
+    if status.Status == "FINISHED" {
+        break
+    }
+    if status.Status == "ERROR" {
+        log.Fatal(status.ErrorMessage)
+    }
+    time.Sleep(2 * time.Second)
+}
+
+// Now publish
+post, _ := client.PublishContainer(ctx, containerID)
+```
 
 ## Support
 
 - [Meta Threads API Documentation](https://developers.facebook.com/docs/threads) - Official API docs
 - [Threads API Reference](https://developers.facebook.com/docs/threads/reference) - Complete endpoint reference
+- [Threads API Error Codes](https://developers.facebook.com/docs/threads/troubleshooting) - Error handling guide
 - Use debug mode for detailed request/response logging

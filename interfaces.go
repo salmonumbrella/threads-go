@@ -69,6 +69,9 @@ type PostCreator interface {
 	// RepostPost reposts an existing post
 	RepostPost(ctx context.Context, postID PostID) (*Post, error)
 
+	// UnrepostPost removes a repost
+	UnrepostPost(ctx context.Context, repostID PostID) error
+
 	// CreateMediaContainer creates a media container for carousel items
 	CreateMediaContainer(ctx context.Context, mediaType, mediaURL, altText string) (ContainerID, error)
 

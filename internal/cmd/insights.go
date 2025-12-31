@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -21,11 +22,16 @@ var insightsPostCmd = &cobra.Command{
 	Short: "Get insights for a post",
 	Long: `Get analytics insights for a specific post.
 
-Available metrics: views, likes, replies, reposts, quotes, shares
+Available metrics: views, likes, replies, reposts, quotes, shares, link_clicks, profile_clicks
+
+Click metrics:
+  link_clicks    - Number of clicks on links in the post
+  profile_clicks - Number of clicks to view your profile from the post
 
 Examples:
   threads insights post 12345678901234567
   threads insights post 12345678901234567 --metrics views,likes,replies
+  threads insights post 12345678901234567 --metrics link_clicks,profile_clicks
   threads insights post 12345678901234567 --output json`,
 	Args: cobra.ExactArgs(1),
 	RunE: runInsightsPost,
@@ -38,18 +44,31 @@ var insightsAccountCmd = &cobra.Command{
 
 Available metrics: views, likes, replies, reposts, quotes, clicks, followers_count, follower_demographics
 
+Metric details:
+  clicks - Total clicks across all posts (combined link and profile clicks)
+
+Breakdown options (for follower_demographics metric):
+  country - Breakdown by country
+  city    - Breakdown by city
+  age     - Breakdown by age group
+  gender  - Breakdown by gender
+
 Examples:
   threads insights account
   threads insights account --metrics views,followers_count
+  threads insights account --metrics clicks
   threads insights account --period day
+  threads insights account --metrics follower_demographics --breakdown country
+  threads insights account --metrics follower_demographics --breakdown age
   threads insights account --output json`,
 	RunE: runInsightsAccount,
 }
 
 // Insights command flags
 var (
-	insightsMetrics []string
-	insightsPeriod  string
+	insightsMetrics   []string
+	insightsPeriod    string
+	insightsBreakdown string
 )
 
 func init() {
@@ -59,6 +78,7 @@ func init() {
 	// Account insights flags
 	insightsAccountCmd.Flags().StringSliceVar(&insightsMetrics, "metrics", []string{"views", "likes", "replies", "reposts"}, "Metrics to retrieve (comma-separated)")
 	insightsAccountCmd.Flags().StringVar(&insightsPeriod, "period", "lifetime", "Time period: day, lifetime")
+	insightsAccountCmd.Flags().StringVar(&insightsBreakdown, "breakdown", "", "Breakdown for follower_demographics: country, city, age, gender")
 
 	insightsCmd.AddCommand(insightsPostCmd)
 	insightsCmd.AddCommand(insightsAccountCmd)
@@ -75,7 +95,7 @@ func runInsightsPost(cmd *cobra.Command, args []string) error {
 
 	insights, err := client.GetPostInsights(ctx, threads.PostID(postID), insightsMetrics)
 	if err != nil {
-		return fmt.Errorf("failed to get post insights: %w", err)
+		return WrapError("failed to get post insights", err)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -115,15 +135,43 @@ func runInsightsAccount(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Validate breakdown if provided
+	if insightsBreakdown != "" {
+		validBreakdowns := map[string]bool{
+			"country": true,
+			"city":    true,
+			"age":     true,
+			"gender":  true,
+		}
+		if !validBreakdowns[insightsBreakdown] {
+			return fmt.Errorf("invalid breakdown value: %s (valid values: country, city, age, gender)", insightsBreakdown)
+		}
+	}
+
 	// Get the authenticated user's ID
 	user, err := client.GetMe(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
+		return WrapError("failed to get user info", err)
 	}
 
-	insights, err := client.GetAccountInsights(ctx, threads.UserID(user.ID), insightsMetrics, insightsPeriod)
+	// Build options
+	opts := &threads.AccountInsightsOptions{
+		Breakdown: insightsBreakdown,
+	}
+
+	// Convert string metrics to AccountInsightMetric
+	for _, m := range insightsMetrics {
+		opts.Metrics = append(opts.Metrics, threads.AccountInsightMetric(m))
+	}
+
+	// Set period
+	if insightsPeriod != "" {
+		opts.Period = threads.InsightPeriod(insightsPeriod)
+	}
+
+	insights, err := client.GetAccountInsightsWithOptions(ctx, threads.UserID(user.ID), opts)
 	if err != nil {
-		return fmt.Errorf("failed to get account insights: %w", err)
+		return WrapError("failed to get account insights", err)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -139,19 +187,45 @@ func runInsightsAccount(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	f := outfmt.NewFormatter()
-	f.Header("METRIC", "VALUE", "PERIOD")
-
+	// Check if this is a breakdown result (follower_demographics with breakdown)
+	hasBreakdownData := false
 	for _, insight := range insights.Data {
-		value := 0
-		if len(insight.Values) > 0 {
-			value = insight.Values[0].Value
-		} else if insight.TotalValue != nil {
-			value = insight.TotalValue.Value
+		if insight.Name == "follower_demographics" && len(insight.Values) > 0 {
+			hasBreakdownData = true
+			break
 		}
-		f.Row(insight.Name, value, insight.Period)
 	}
-	f.Flush()
+
+	if hasBreakdownData && insightsBreakdown != "" {
+		// Display breakdown data in a special format
+		f := outfmt.NewFormatter()
+		f.Header(strings.ToUpper(insightsBreakdown), "PERCENTAGE")
+
+		for _, insight := range insights.Data {
+			if insight.Name == "follower_demographics" {
+				for _, v := range insight.Values {
+					// Values for breakdown contain the category and percentage
+					f.Row(v.EndTime, fmt.Sprintf("%d%%", v.Value))
+				}
+			}
+		}
+		f.Flush()
+	} else {
+		// Standard metrics display
+		f := outfmt.NewFormatter()
+		f.Header("METRIC", "VALUE", "PERIOD")
+
+		for _, insight := range insights.Data {
+			value := 0
+			if len(insight.Values) > 0 {
+				value = insight.Values[0].Value
+			} else if insight.TotalValue != nil {
+				value = insight.TotalValue.Value
+			}
+			f.Row(insight.Name, value, insight.Period)
+		}
+		f.Flush()
+	}
 
 	return nil
 }

@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	threads "github.com/salmonumbrella/threads-go"
@@ -36,7 +34,10 @@ func newLocationsSearchCmd() *cobra.Command {
 			}
 
 			if query == "" && lat == 0 && lng == 0 {
-				return fmt.Errorf("provide either a search query or --lat/--lng coordinates")
+				return &UserFriendlyError{
+					Message:    "No search criteria provided",
+					Suggestion: "Provide either a search query or --lat/--lng coordinates",
+				}
 			}
 
 			client, err := getClient(cmd.Context())
@@ -52,7 +53,7 @@ func newLocationsSearchCmd() *cobra.Command {
 
 			result, err := client.SearchLocations(cmd.Context(), query, latPtr, lngPtr)
 			if err != nil {
-				return err
+				return WrapError("location search failed", err)
 			}
 
 			f := outfmt.FromContext(cmd.Context())
@@ -101,7 +102,7 @@ func newLocationsGetCmd() *cobra.Command {
 
 			location, err := client.GetLocation(cmd.Context(), threads.LocationID(locationID))
 			if err != nil {
-				return err
+				return WrapError("failed to get location", err)
 			}
 
 			f := outfmt.FromContext(cmd.Context())

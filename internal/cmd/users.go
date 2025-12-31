@@ -67,7 +67,7 @@ func runUsersMe(cmd *cobra.Command, args []string) error {
 
 	user, err := client.GetMe(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
+		return WrapError("failed to get user info", err)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -89,7 +89,7 @@ func runUsersGet(cmd *cobra.Command, args []string) error {
 
 	user, err := client.GetUser(ctx, threads.UserID(userID))
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return WrapError("failed to get user", err)
 	}
 
 	if outfmt.IsJSON(ctx) {
@@ -111,7 +111,7 @@ func runUsersLookup(cmd *cobra.Command, args []string) error {
 
 	publicUser, err := client.LookupPublicProfile(ctx, username)
 	if err != nil {
-		return fmt.Errorf("failed to lookup profile: %w", err)
+		return WrapError("failed to lookup profile", err)
 	}
 
 	if outfmt.IsJSON(ctx) {

@@ -110,6 +110,7 @@ func init() {
 	rootCmd.AddCommand(newSearchCmd())
 	rootCmd.AddCommand(usersCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(webhooksCmd)
 }
 
 // versionCmd shows version information
@@ -162,6 +163,7 @@ func confirm(prompt string) bool {
 	}
 	fmt.Printf("%s [y/N]: ", prompt)
 	var response string
+	//nolint:errcheck,gosec // Scanln error is fine - empty response means "no"
 	fmt.Scanln(&response)
 	return response == "y" || response == "Y" || response == "yes"
 }
