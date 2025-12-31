@@ -54,6 +54,7 @@ func init() {
 	usersCmd.AddCommand(usersMeCmd)
 	usersCmd.AddCommand(usersGetCmd)
 	usersCmd.AddCommand(usersLookupCmd)
+	usersCmd.AddCommand(newUsersMentionsCmd())
 }
 
 func runUsersMe(cmd *cobra.Command, args []string) error {
@@ -192,4 +193,82 @@ func printPublicUserText(u *threads.PublicUser) {
 	if u.ProfilePictureURL != "" {
 		fmt.Printf("\n  Picture:    %s\n", u.ProfilePictureURL)
 	}
+}
+
+func newUsersMentionsCmd() *cobra.Command {
+	var limit int
+	var after string
+
+	cmd := &cobra.Command{
+		Use:   "mentions",
+		Short: "List posts mentioning you",
+		Long:  `List posts where the authenticated user is mentioned.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return err
+			}
+
+			// Get authenticated user
+			me, err := client.GetMe(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get user info: %w", err)
+			}
+
+			opts := &threads.PaginationOptions{
+				Limit: limit,
+				After: after,
+			}
+
+			result, err := client.GetUserMentions(ctx, threads.UserID(me.ID), opts)
+			if err != nil {
+				return fmt.Errorf("failed to get mentions: %w", err)
+			}
+
+			// JSON output
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSON(map[string]any{
+					"posts":  result.Data,
+					"paging": result.Paging,
+				}, jqQuery)
+			}
+
+			// Text output
+			if len(result.Data) == 0 {
+				ui.Info("No mentions found")
+				return nil
+			}
+
+			f := outfmt.NewFormatter()
+			f.Header("ID", "FROM", "TEXT", "TIMESTAMP")
+
+			for _, post := range result.Data {
+				text := post.Text
+				if len(text) > 50 {
+					text = text[:47] + "..."
+				}
+				f.Row(
+					post.ID,
+					"@"+post.Username,
+					text,
+					post.Timestamp.Format("2006-01-02 15:04"),
+				)
+			}
+			f.Flush()
+
+			// Show pagination hint if there are more results
+			if result.Paging.Cursors != nil && result.Paging.Cursors.After != "" {
+				fmt.Printf("\nMore results available. Use --after %s to see next page.\n", result.Paging.Cursors.After)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum results")
+	cmd.Flags().StringVar(&after, "after", "", "Pagination cursor for next page")
+
+	return cmd
 }
