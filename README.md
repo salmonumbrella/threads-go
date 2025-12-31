@@ -83,6 +83,9 @@ threads auth remove NAME    # Remove account
 threads posts create --text "Hello!"                    # Text post
 threads posts create --text "Check this" --image URL    # Image post
 threads posts create --video URL                        # Video post
+threads posts carousel --items url1,url2,url3           # Carousel (2-20 items)
+threads posts quote POST_ID --text "My take"            # Quote post
+threads posts repost POST_ID                            # Repost
 threads posts get POST_ID                               # Get post
 threads posts list                                      # List posts
 threads posts delete POST_ID                            # Delete post
@@ -94,6 +97,7 @@ threads posts delete POST_ID                            # Delete post
 threads me                      # Your profile
 threads users get USER_ID       # Get user by ID
 threads users lookup @username  # Lookup public profile
+threads users mentions          # Posts mentioning you
 ```
 
 ### Replies
@@ -117,8 +121,34 @@ threads insights account --metrics views,followers_count
 ### Search
 
 ```bash
-threads search "query"              # Search posts
-threads search "golang" --limit 10  # With limit
+threads search "query"                           # Search posts
+threads search "golang" --limit 10               # With limit
+threads search "news" --media-type IMAGE         # Filter by type
+threads search "tech" --since 2024-01-01         # Posts after date
+```
+
+### Locations
+
+```bash
+threads locations search "San Francisco"         # Search by name
+threads locations search --lat 37.7 --lng -122.4 # Search by coords
+threads locations get LOCATION_ID                # Get details
+```
+
+### Rate Limits
+
+```bash
+threads ratelimit status        # Current rate limit status
+threads ratelimit publishing    # API publishing quota
+```
+
+### Shell Completion
+
+```bash
+threads completion bash         # Generate bash completions
+threads completion zsh          # Generate zsh completions
+threads completion fish         # Generate fish completions
+threads completion powershell   # Generate PowerShell completions
 ```
 
 ## Global Flags
