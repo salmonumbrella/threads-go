@@ -58,6 +58,8 @@ func init() {
 	postsCmd.AddCommand(postsListCmd)
 	postsCmd.AddCommand(postsDeleteCmd)
 	postsCmd.AddCommand(postsCarouselCmd)
+	postsCmd.AddCommand(newPostsQuoteCmd())
+	postsCmd.AddCommand(newPostsRepostCmd())
 }
 
 var postsCreateCmd = &cobra.Command{
@@ -486,4 +488,109 @@ func waitForContainer(ctx context.Context, client *threads.Client, containerID t
 			// Still IN_PROGRESS, continue waiting
 		}
 	}
+}
+
+func newPostsQuoteCmd() *cobra.Command {
+	var text string
+	var imageURL string
+	var videoURL string
+
+	cmd := &cobra.Command{
+		Use:   "quote [post-id]",
+		Short: "Create a quote post",
+		Long:  "Quote an existing post with optional text, image, or video.",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Quote with text
+  threads posts quote 12345 --text "Great point!"
+
+  # Quote with image
+  threads posts quote 12345 --image https://example.com/image.jpg --text "Check this out"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			quotedPostID := args[0]
+
+			client, err := getClient(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			var content interface{}
+			switch {
+			case videoURL != "":
+				content = &threads.VideoPostContent{
+					VideoURL: videoURL,
+					Text:     text,
+				}
+			case imageURL != "":
+				content = &threads.ImagePostContent{
+					ImageURL: imageURL,
+					Text:     text,
+				}
+			default:
+				content = &threads.TextPostContent{
+					Text: text,
+				}
+			}
+
+			post, err := client.CreateQuotePost(cmd.Context(), content, quotedPostID)
+			if err != nil {
+				return fmt.Errorf("failed to create quote post: %w", err)
+			}
+
+			if outfmt.IsJSON(cmd.Context()) {
+				return outfmt.WriteJSON(post, jqQuery)
+			}
+
+			ui.Success("Quote post created successfully!")
+			fmt.Printf("  ID:        %s\n", post.ID)
+			fmt.Printf("  Permalink: %s\n", post.Permalink)
+			if post.Text != "" {
+				postText := post.Text
+				if len(postText) > 50 {
+					postText = postText[:50] + "..."
+				}
+				fmt.Printf("  Text:      %s\n", postText)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&text, "text", "", "Quote text")
+	cmd.Flags().StringVar(&imageURL, "image", "", "Image URL to include")
+	cmd.Flags().StringVar(&videoURL, "video", "", "Video URL to include")
+
+	return cmd
+}
+
+func newPostsRepostCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "repost [post-id]",
+		Short:   "Repost an existing post",
+		Args:    cobra.ExactArgs(1),
+		Example: `  threads posts repost 12345`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			postID := args[0]
+
+			client, err := getClient(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			post, err := client.RepostPost(cmd.Context(), threads.PostID(postID))
+			if err != nil {
+				return fmt.Errorf("failed to repost: %w", err)
+			}
+
+			if outfmt.IsJSON(cmd.Context()) {
+				return outfmt.WriteJSON(post, jqQuery)
+			}
+
+			ui.Success("Reposted successfully!")
+			fmt.Printf("  ID:        %s\n", post.ID)
+			fmt.Printf("  Permalink: %s\n", post.Permalink)
+
+			return nil
+		},
+	}
+	return cmd
 }
