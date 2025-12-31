@@ -22,6 +22,91 @@ type contextKey string
 
 const formatKey contextKey = "output_format"
 
+// ColumnType defines how a column should be formatted
+type ColumnType int
+
+const (
+	ColumnPlain ColumnType = iota
+	ColumnStatus
+	ColumnAmount
+	ColumnCurrency
+	ColumnDate
+	ColumnID
+)
+
+// ANSI escape codes for colors
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorCyan   = "\033[36m"
+	colorGray   = "\033[90m"
+)
+
+// formatColumn applies formatting based on column type
+func formatColumn(value string, colType ColumnType, colorEnabled bool) string {
+	if !colorEnabled {
+		return value
+	}
+
+	switch colType {
+	case ColumnStatus:
+		return formatStatus(value)
+	case ColumnAmount:
+		return formatAmount(value)
+	case ColumnCurrency:
+		return formatCurrency(value)
+	case ColumnDate:
+		return formatDate(value)
+	case ColumnID:
+		return formatID(value)
+	default:
+		return value
+	}
+}
+
+// formatStatus colors status values based on their meaning
+func formatStatus(status string) string {
+	switch status {
+	case "PUBLISHED", "ACTIVE", "FINISHED", "COMPLETED", "SUCCESS":
+		return colorGreen + status + colorReset
+	case "IN_PROGRESS", "PUBLISHING", "PENDING", "PROCESSING":
+		return colorYellow + status + colorReset
+	case "FAILED", "ERROR", "CANCELLED", "REJECTED":
+		return colorRed + status + colorReset
+	default:
+		return status
+	}
+}
+
+// formatAmount colors amounts based on sign (negative=red, positive=green)
+func formatAmount(amount string) string {
+	if len(amount) == 0 {
+		return amount
+	}
+	if amount[0] == '-' {
+		return colorRed + amount + colorReset
+	}
+	return colorGreen + amount + colorReset
+}
+
+// formatCurrency colors currency codes in cyan
+func formatCurrency(currency string) string {
+	return colorCyan + currency + colorReset
+}
+
+// formatDate colors dates in gray
+func formatDate(date string) string {
+	return colorGray + date + colorReset
+}
+
+// formatID colors IDs in blue
+func formatID(id string) string {
+	return colorBlue + id + colorReset
+}
+
 // NewContext creates a context with output format
 func NewContext(ctx context.Context, format Format) context.Context {
 	return context.WithValue(ctx, formatKey, format)
