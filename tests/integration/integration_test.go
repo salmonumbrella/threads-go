@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	threads "github.com/tirthpatell/threads-go"
+	threads "github.com/salmonumbrella/threads-go"
 )
 
 // Integration test configuration - using GitHub secrets

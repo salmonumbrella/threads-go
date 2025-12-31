@@ -5,6 +5,7 @@
 *.dylib
 *.test
 *.out
+/threads
 
 # Dependencies
 vendor/
@@ -13,6 +14,8 @@ vendor/
 .idea/
 .vscode/
 .claude/
+.cursor/
+.specstory/
 CLAUDE.md
 *.swp
 *.swo
@@ -33,7 +36,8 @@ coverage.out
 *.key
 *.cert
 private/
-secrets/
+/secrets/
+!internal/secrets/
 
 # Local test files
 *_local_test.go

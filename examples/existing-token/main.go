@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tirthpatell/threads-go"
+	"github.com/salmonumbrella/threads-go"
 )
 
 func main() {

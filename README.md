@@ -1,261 +1,197 @@
-# Threads API Go Client
+# Threads CLI
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/tirthpatell/threads-go.svg)](https://pkg.go.dev/github.com/tirthpatell/threads-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/tirthpatell/threads-go)](https://goreportcard.com/report/github.com/tirthpatell/threads-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/salmonumbrella/threads-go.svg)](https://pkg.go.dev/github.com/salmonumbrella/threads-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/salmonumbrella/threads-go)](https://goreportcard.com/report/github.com/salmonumbrella/threads-go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Production-ready Go client for the Threads API with complete endpoint coverage, OAuth 2.0 authentication, rate limiting, and comprehensive error handling.
+A production-ready command-line interface for Meta's Threads API. Built on top of a comprehensive Go client library with full API coverage, OAuth 2.0 authentication, and agent-friendly design.
 
 ## Features
 
-- Complete API coverage (posts, users, replies, insights, locations)
-- OAuth 2.0 flow and existing token support
-- Intelligent rate limiting with exponential backoff
-- Type-safe error handling
-- Thread-safe concurrent usage
-- Comprehensive test coverage
+- **Full API Coverage**: Posts, replies, users, insights, search, and more
+- **OAuth 2.0**: Browser-based authentication with long-lived tokens (60 days)
+- **Secure Storage**: Credentials stored in system keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager)
+- **Agent-Friendly**: Designed for automation with Claude and other AI assistants
+- **Multiple Output Formats**: Text and JSON with JQ filtering support
+- **Cross-Platform**: macOS, Linux, and Windows support
 
 ## Installation
 
+### From Source
+
 ```bash
-go get github.com/tirthpatell/threads-go
+go install github.com/salmonumbrella/threads-go/cmd/threads@latest
 ```
+
+### From Releases
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/salmonumbrella/threads-go/releases).
 
 ## Quick Start
 
-### With Existing Token
+### 1. Set Up Meta App Credentials
 
-```go
-client, err := threads.NewClientWithToken("your-access-token", &threads.Config{
-    ClientID:     "your-client-id",
-    ClientSecret: "your-client-secret",
-    RedirectURI:  "your-redirect-uri",
-})
-
-// Create a post
-post, err := client.CreateTextPost(context.Background(), &threads.TextPostContent{
-    Text: "Hello Threads!",
-})
-```
-
-### OAuth Flow
-
-```go
-config := &threads.Config{
-    ClientID:     "your-client-id",
-    ClientSecret: "your-client-secret", 
-    RedirectURI:  "your-redirect-uri",
-    Scopes:       []string{"threads_basic", "threads_content_publish"},
-}
-
-client, err := threads.NewClient(config)
-
-// Get authorization URL
-authURL := client.GetAuthURL(config.Scopes)
-// Redirect user to authURL
-
-// Exchange authorization code for token
-err = client.ExchangeCodeForToken("auth-code-from-callback")
-err = client.GetLongLivedToken() // Convert to long-lived token
-```
-
-### Environment Variables
+Create a Meta app at [developers.facebook.com](https://developers.facebook.com/) and configure it for Threads API access.
 
 ```bash
 export THREADS_CLIENT_ID="your-client-id"
 export THREADS_CLIENT_SECRET="your-client-secret"
-export THREADS_REDIRECT_URI="your-redirect-uri"
-export THREADS_ACCESS_TOKEN="your-access-token"  # optional
 ```
 
-```go
-client, err := threads.NewClientFromEnv()
+### 2. Authenticate
+
+```bash
+# Browser-based OAuth flow (recommended)
+threads auth login
+
+# Or use an existing token
+threads auth token YOUR_ACCESS_TOKEN
 ```
 
-## Available Scopes
+### 3. Start Using Threads
 
-- `threads_basic` - Basic profile access
-- `threads_content_publish` - Create and publish posts  
-- `threads_manage_insights` - Access analytics data
-- `threads_manage_replies` - Manage replies and conversations
-- `threads_read_replies` - Read replies to posts
-- `threads_keyword_search` - Search functionality
-- `threads_delete` - Delete posts
-- `threads_location_tagging` - Location services
+```bash
+# View your profile
+threads me
 
-## API Usage
+# Create a post
+threads posts create --text "Hello from the CLI!"
+
+# List your posts
+threads posts list
+
+# Search for content
+threads search "machine learning"
+```
+
+## Commands
+
+### Authentication
+
+```bash
+threads auth login          # Browser OAuth flow
+threads auth token TOKEN    # Use existing token
+threads auth refresh        # Refresh before expiry
+threads auth status         # Show token status
+threads auth list           # List accounts
+threads auth remove NAME    # Remove account
+```
 
 ### Posts
 
-```go
-// Create different post types
-textPost, err := client.CreateTextPost(ctx, &threads.TextPostContent{
-    Text: "Hello Threads!",
-})
-
-imagePost, err := client.CreateImagePost(ctx, &threads.ImagePostContent{
-    Text: "Check this out!",
-    ImageURL: "https://example.com/image.jpg",
-})
-
-// Get posts
-post, err := client.GetPost(ctx, threads.PostID("123"))
-posts, err := client.GetUserPosts(ctx, threads.UserID("456"), &threads.PostsOptions{Limit: 25})
-
-// Delete post
-err = client.DeletePost(ctx, threads.PostID("123"))
+```bash
+threads posts create --text "Hello!"                    # Text post
+threads posts create --text "Check this" --image URL    # Image post
+threads posts create --video URL                        # Video post
+threads posts get POST_ID                               # Get post
+threads posts list                                      # List posts
+threads posts delete POST_ID                            # Delete post
 ```
 
-### Users & Profiles
-
-```go
-// Get user info
-me, err := client.GetMe(ctx)
-user, err := client.GetUser(ctx, threads.UserID("123"))
-
-// Public profiles
-publicUser, err := client.LookupPublicProfile(ctx, "@username")
-posts, err := client.GetPublicProfilePosts(ctx, "username", nil)
-```
-
-### Replies & Conversations
-
-```go
-// Reply to posts
-reply, err := client.ReplyToPost(ctx, threads.PostID("123"), &threads.PostContent{
-    Text: "Great post!",
-})
-
-// Get replies
-replies, err := client.GetReplies(ctx, threads.PostID("123"), &threads.RepliesOptions{Limit: 50})
-
-// Manage visibility
-err = client.HideReply(ctx, threads.PostID("456"))
-```
-
-### Insights & Analytics
-
-```go
-// Post insights
-insights, err := client.GetPostInsights(ctx, threads.PostID("123"), []string{"views", "likes"})
-
-// Account insights  
-insights, err := client.GetAccountInsights(ctx, threads.UserID("456"), []string{"views"}, "lifetime")
-```
-
-### Search & Locations
-
-```go
-// Search posts by keyword
-results, err := client.KeywordSearch(ctx, "golang", &threads.SearchOptions{Limit: 25})
-
-// Search posts filtered by media type
-imageResults, err := client.KeywordSearch(ctx, "nature", &threads.SearchOptions{
-    MediaType: threads.MediaTypeImage,  // Filter for IMAGE posts only (TEXT, IMAGE, or VIDEO)
-    Limit: 25,
-})
-
-// Search posts by topic tag
-tagResults, err := client.KeywordSearch(ctx, "#technology", &threads.SearchOptions{
-    SearchMode: threads.SearchModeTag,
-    Limit: 25,
-})
-
-// Location search
-locations, err := client.SearchLocations(ctx, "New York", nil, nil)
-```
-
-### Pagination & Iterators
-
-For large datasets, use iterators to automatically handle pagination:
-
-```go
-// Posts iterator
-userID := threads.ConvertToUserID("user_id")
-iterator := threads.NewPostIterator(client, userID, &threads.PostsOptions{
-    Limit: 25,
-})
-
-for iterator.HasNext() {
-    response, err := iterator.Next(ctx)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    for _, post := range response.Data {
-        fmt.Printf("Post: %s\n", post.Text)
-    }
-}
-
-// Replies iterator
-replyIterator := threads.NewReplyIterator(client, threads.PostID("123"), &threads.RepliesOptions{
-    Limit: 50,
-})
-
-// Search iterator
-searchIterator := threads.NewSearchIterator(client, "golang", "keyword", &threads.SearchOptions{
-    Limit: 25,
-})
-
-// Collect all results at once
-allPosts, err := iterator.Collect(ctx)
-```
-
-## Configuration
-
-```go
-config := &threads.Config{
-    ClientID:     "your-client-id",
-    ClientSecret: "your-client-secret",
-    RedirectURI:  "https://yourapp.com/callback",
-    Scopes:       []string{"threads_basic", "threads_content_publish"},
-    HTTPTimeout:  30 * time.Second,
-    Debug:        false,
-}
-```
-
-For advanced configuration including retry logic, custom logging, and token storage, see the [GoDoc documentation](https://pkg.go.dev/github.com/tirthpatell/threads-go).
-
-## Error Handling
-
-The client provides typed errors for different scenarios:
-
-```go
-switch {
-case threads.IsAuthenticationError(err):
-    // Handle authentication issues
-case threads.IsRateLimitError(err):
-    rateLimitErr := err.(*threads.RateLimitError)
-    time.Sleep(rateLimitErr.RetryAfter)
-case threads.IsValidationError(err):
-    validationErr := err.(*threads.ValidationError)
-    log.Printf("Invalid %s: %s", validationErr.Field, err.Error())
-}
-```
-
-Error types: `AuthenticationError`, `RateLimitError`, `ValidationError`, `NetworkError`, `APIError`
-
-## Testing
+### Users
 
 ```bash
-# Unit tests
-go test ./...
-
-# Integration tests (requires valid credentials)
-export THREADS_ACCESS_TOKEN="your-token"
-go test ./tests/integration/...
+threads me                      # Your profile
+threads users get USER_ID       # Get user by ID
+threads users lookup @username  # Lookup public profile
 ```
+
+### Replies
+
+```bash
+threads replies list POST_ID                    # List replies
+threads replies create POST_ID --text "Reply"   # Reply to post
+threads replies hide REPLY_ID                   # Hide reply
+threads replies unhide REPLY_ID                 # Unhide reply
+threads replies conversation POST_ID            # Full thread
+```
+
+### Insights
+
+```bash
+threads insights post POST_ID                           # Post analytics
+threads insights account                                # Account analytics
+threads insights account --metrics views,followers_count
+```
+
+### Search
+
+```bash
+threads search "query"              # Search posts
+threads search "golang" --limit 10  # With limit
+```
+
+## Global Flags
+
+```
+-a, --account string   Account to use (or THREADS_ACCOUNT)
+-o, --output string    Output format: text, json (default "text")
+-q, --query string     JQ filter for JSON output
+-y, --yes              Skip confirmation prompts
+    --limit int        Limit results
+    --debug            Debug output
+```
+
+## Agent-Friendly Design
+
+This CLI is designed for automation with AI assistants:
+
+- **JSON output**: `--output json` for machine-readable responses
+- **JQ filtering**: `--query '.data[0].id'` to extract specific fields
+- **No prompts**: `--yes` to skip confirmations
+- **Structured errors**: Clear error messages for programmatic handling
+
+Example automation:
+
+```bash
+# Get post ID from JSON output
+POST_ID=$(threads posts create --text "Hello" -o json | jq -r '.id')
+
+# Get insights for the post
+threads insights post $POST_ID -o json
+```
+
+## Environment Variables
+
+```bash
+THREADS_CLIENT_ID       # Meta App Client ID
+THREADS_CLIENT_SECRET   # Meta App Client Secret
+THREADS_REDIRECT_URI    # OAuth redirect URI
+THREADS_ACCESS_TOKEN    # Access token (for token command)
+THREADS_ACCOUNT         # Default account name
+THREADS_OUTPUT          # Default output format
+NO_COLOR                # Disable color output
+```
+
+## Go Library
+
+This CLI is built on a comprehensive Go client library. You can also use the library directly:
+
+```go
+import threads "github.com/salmonumbrella/threads-go"
+
+client, err := threads.NewClientWithToken("token", &threads.Config{
+    ClientID:     "your-client-id",
+    ClientSecret: "your-client-secret",
+})
+
+// Create a post
+post, err := client.CreateTextPost(ctx, &threads.TextPostContent{
+    Text: "Hello from Go!",
+})
+```
+
+See the [Go documentation](https://pkg.go.dev/github.com/salmonumbrella/threads-go) for full library usage.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## Official Documentation
-
-- [Meta Threads API Documentation](https://developers.facebook.com/docs/threads)
-- [Threads API Reference](https://developers.facebook.com/docs/threads/reference)
-- [Authentication Guide](https://developers.facebook.com/docs/threads/getting-started)
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Credits
+
+- CLI built on [tirthpatell/threads-go](https://github.com/tirthpatell/threads-go) library
+- Inspired by [airwallex-cli](https://github.com/salmonumbrella/airwallex-cli) patterns

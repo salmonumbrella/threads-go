@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tirthpatell/threads-go"
+	"github.com/salmonumbrella/threads-go"
 )
 
 // SimpleLogger implements the threads.Logger interface for demonstration

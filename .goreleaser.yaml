@@ -1,0 +1,79 @@
+version: 2
+
+project_name: threads
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  # macOS builds with CGO for keychain support
+  - id: threads-darwin
+    binary: threads
+    main: ./cmd/threads
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.BuildDate={{.Date}}
+
+  # Linux/Windows builds without CGO
+  - id: threads-other
+    binary: threads
+    main: ./cmd/threads
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/threads-go/internal/cmd.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: salmonumbrella
+    name: threads-go
+  draft: false
+  prerelease: auto
+  name_template: "{{.Tag}}"
