@@ -144,7 +144,10 @@ func runInsightsAccount(cmd *cobra.Command, args []string) error {
 			"gender":  true,
 		}
 		if !validBreakdowns[insightsBreakdown] {
-			return fmt.Errorf("invalid breakdown value: %s (valid values: country, city, age, gender)", insightsBreakdown)
+			return &UserFriendlyError{
+				Message:    fmt.Sprintf("Invalid breakdown value: %s", insightsBreakdown),
+				Suggestion: "Valid breakdown values are: country, city, age, gender",
+			}
 		}
 	}
 

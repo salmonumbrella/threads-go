@@ -1,21 +1,30 @@
-# Threads CLI
+# Threads CLI - Social media in your terminal.
+
+Threads in your terminal. Create posts, manage replies, view insights, search content, and automate your Threads presence.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/salmonumbrella/threads-go.svg)](https://pkg.go.dev/github.com/salmonumbrella/threads-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/salmonumbrella/threads-go)](https://goreportcard.com/report/github.com/salmonumbrella/threads-go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A production-ready command-line interface for Meta's Threads API. Built on top of a comprehensive Go client library with full API coverage, OAuth 2.0 authentication, and agent-friendly design.
-
 ## Features
 
-- **Full API Coverage**: Posts, replies, users, insights, search, and more
-- **OAuth 2.0**: Browser-based authentication with long-lived tokens (60 days)
-- **Secure Storage**: Credentials stored in system keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager)
-- **Agent-Friendly**: Designed for automation with Claude and other AI assistants
-- **Multiple Output Formats**: Text and JSON with JQ filtering support
-- **Cross-Platform**: macOS, Linux, and Windows support
+- **Authentication** - OAuth 2.0 with long-lived tokens (60 days), auto-refresh
+- **Posts** - create text, image, video, carousel, quote posts, and reposts
+- **Replies** - list, create, hide/unhide replies, view conversation threads
+- **Users** - view profiles, lookup by username, check mentions
+- **Insights** - post and account analytics with customizable metrics
+- **Search** - keyword search with date and media type filters
+- **Locations** - search by name or coordinates
+- **Multiple accounts** - manage multiple Threads accounts
+- **Agent-friendly** - JSON output, JQ filtering, no-prompt mode for automation
 
 ## Installation
+
+### Homebrew
+
+```bash
+brew install salmonumbrella/tap/threads-cli
+```
 
 ### From Source
 
@@ -48,33 +57,73 @@ threads auth login
 threads auth token YOUR_ACCESS_TOKEN
 ```
 
-### 3. Start Using Threads
+### 3. Test Authentication
 
 ```bash
-# View your profile
-threads me
-
-# Create a post
-threads posts create --text "Hello from the CLI!"
-
-# List your posts
-threads posts list
-
-# Search for content
-threads search "machine learning"
+threads auth status
 ```
+
+## Configuration
+
+### Account Selection
+
+Specify the account using either a flag or environment variable:
+
+```bash
+# Via flag
+threads posts list --account my-account
+
+# Via environment
+export THREADS_ACCOUNT=my-account
+threads posts list
+```
+
+### Environment Variables
+
+- `THREADS_CLIENT_ID` - Meta App Client ID
+- `THREADS_CLIENT_SECRET` - Meta App Client Secret
+- `THREADS_REDIRECT_URI` - OAuth redirect URI (optional)
+- `THREADS_ACCESS_TOKEN` - Access token (for token command)
+- `THREADS_ACCOUNT` - Default account name to use
+- `THREADS_OUTPUT` - Output format: `text` (default) or `json`
+- `NO_COLOR` - Set to any value to disable colors
+
+## Security
+
+### Credential Storage
+
+Credentials are stored securely in your system's keychain:
+- **macOS**: Keychain Access
+- **Linux**: Secret Service (GNOME Keyring, KWallet)
+- **Windows**: Credential Manager
+
+## Rate Limiting
+
+The Threads API enforces rate limits per 24-hour window:
+- **Posts**: 250 posts/day
+- **Replies**: 1000 replies/day
+- **Deletes**: 25 deletes/day
+
+Check your current limits:
+
+```bash
+threads ratelimit status        # Current rate limit status
+threads ratelimit publishing    # API publishing quota
+```
+
+When rate limited, wait for the reset period or reduce request frequency.
 
 ## Commands
 
 ### Authentication
 
 ```bash
-threads auth login          # Browser OAuth flow
-threads auth token TOKEN    # Use existing token
-threads auth refresh        # Refresh before expiry
-threads auth status         # Show token status
-threads auth list           # List accounts
-threads auth remove NAME    # Remove account
+threads auth login                     # Browser OAuth flow (recommended)
+threads auth token TOKEN               # Use existing token
+threads auth refresh                   # Refresh before expiry
+threads auth status                    # Show token status
+threads auth list                      # List configured accounts
+threads auth remove NAME               # Remove account
 ```
 
 ### Posts
@@ -86,28 +135,28 @@ threads posts create --video URL                        # Video post
 threads posts carousel --items url1,url2,url3           # Carousel (2-20 items)
 threads posts quote POST_ID --text "My take"            # Quote post
 threads posts repost POST_ID                            # Repost
-threads posts get POST_ID                               # Get post
-threads posts list                                      # List posts
+threads posts get POST_ID                               # Get post details
+threads posts list                                      # List your posts
 threads posts delete POST_ID                            # Delete post
 ```
 
 ### Users
 
 ```bash
-threads me                      # Your profile
-threads users get USER_ID       # Get user by ID
-threads users lookup @username  # Lookup public profile
-threads users mentions          # Posts mentioning you
+threads me                             # Your profile
+threads users get USER_ID              # Get user by ID
+threads users lookup @username         # Lookup public profile
+threads users mentions                 # Posts mentioning you
 ```
 
 ### Replies
 
 ```bash
-threads replies list POST_ID                    # List replies
+threads replies list POST_ID                    # List replies to a post
 threads replies create POST_ID --text "Reply"   # Reply to post
 threads replies hide REPLY_ID                   # Hide reply
 threads replies unhide REPLY_ID                 # Unhide reply
-threads replies conversation POST_ID            # Full thread
+threads replies conversation POST_ID            # Full conversation thread
 ```
 
 ### Insights
@@ -131,174 +180,45 @@ threads search "tech" --since 2024-01-01         # Posts after date
 
 ```bash
 threads locations search "San Francisco"         # Search by name
-threads locations search --lat 37.7 --lng -122.4 # Search by coords
-threads locations get LOCATION_ID                # Get details
+threads locations search --lat 37.7 --lng -122.4 # Search by coordinates
+threads locations get LOCATION_ID                # Get location details
 ```
 
-### Rate Limits
+## Output Formats
+
+### Text
+
+Human-readable output with colors and formatting:
 
 ```bash
-threads ratelimit status        # Current rate limit status
-threads ratelimit publishing    # API publishing quota
+$ threads me
+Username: @johndoe
+Followers: 1,234
+Following: 567
+
+$ threads posts list
+ID                    TEXT                           TIMESTAMP
+1234567890123456789   Hello from the CLI!            2024-01-15 10:30
+9876543210987654321   Check out this photo...        2024-01-14 15:45
 ```
 
-### Shell Completion
+### JSON
+
+Machine-readable output:
 
 ```bash
-threads completion bash         # Generate bash completions
-threads completion zsh          # Generate zsh completions
-threads completion fish         # Generate fish completions
-threads completion powershell   # Generate PowerShell completions
+$ threads me --output json
+{
+  "id": "1234567890",
+  "username": "johndoe",
+  "threads_profile_picture_url": "https://...",
+  "threads_biography": "..."
+}
 ```
 
-## Global Flags
+Data goes to stdout, errors and progress to stderr for clean piping.
 
-```
--a, --account string   Account to use (or THREADS_ACCOUNT)
--o, --output string    Output format: text, json (default "text")
--q, --query string     JQ filter for JSON output
--y, --yes              Skip confirmation prompts
-    --limit int        Limit results
-    --debug            Debug output
-```
-
-## Agent-Friendly Design
-
-This CLI is designed for automation with AI assistants:
-
-- **JSON output**: `--output json` for machine-readable responses
-- **JQ filtering**: `--query '.data[0].id'` to extract specific fields
-- **No prompts**: `--yes` to skip confirmations
-- **Structured errors**: Clear error messages for programmatic handling
-
-Example automation:
-
-```bash
-# Get post ID from JSON output
-POST_ID=$(threads posts create --text "Hello" -o json | jq -r '.id')
-
-# Get insights for the post
-threads insights post $POST_ID -o json
-```
-
-## Environment Variables
-
-```bash
-THREADS_CLIENT_ID       # Meta App Client ID
-THREADS_CLIENT_SECRET   # Meta App Client Secret
-THREADS_REDIRECT_URI    # OAuth redirect URI
-THREADS_ACCESS_TOKEN    # Access token (for token command)
-THREADS_ACCOUNT         # Default account name
-THREADS_OUTPUT          # Default output format
-NO_COLOR                # Disable color output
-```
-
-## API Reference
-
-CLI commands map to Threads Graph API endpoints:
-
-| Command | API Endpoint | Description |
-|---------|-------------|-------------|
-| `threads me` | `GET /me` | Get authenticated user profile |
-| `threads users get ID` | `GET /{user-id}` | Get user by ID |
-| `threads posts create` | `POST /{user-id}/threads` + `POST /{container-id}/threads_publish` | Create and publish a post |
-| `threads posts get ID` | `GET /{post-id}` | Get post details |
-| `threads posts list` | `GET /{user-id}/threads` | List user's posts |
-| `threads posts delete ID` | `DELETE /{post-id}` | Delete a post |
-| `threads posts carousel` | `POST /{user-id}/threads` (media_type=CAROUSEL) | Create carousel post |
-| `threads posts quote ID` | `POST /{user-id}/threads` (quoted_post_id) | Quote a post |
-| `threads posts repost ID` | `POST /{post-id}/repost` | Repost content |
-| `threads replies list ID` | `GET /{post-id}/replies` | Get replies to a post |
-| `threads replies create ID` | `POST /{user-id}/threads` (reply_to_id) | Reply to a post |
-| `threads replies conversation ID` | `GET /{post-id}/conversation` | Get full conversation thread |
-| `threads replies hide ID` | `POST /{reply-id}/manage_reply` (hide=true) | Hide a reply |
-| `threads replies unhide ID` | `POST /{reply-id}/manage_reply` (hide=false) | Unhide a reply |
-| `threads insights post ID` | `GET /{post-id}/insights` | Get post analytics |
-| `threads insights account` | `GET /{user-id}/threads_insights` | Get account analytics |
-| `threads search QUERY` | `GET /{user-id}/threads_keyword_search` | Search posts |
-| `threads locations search` | `GET /locations_search` | Search locations |
-| `threads ratelimit publishing` | `GET /{user-id}/threads_publishing_limit` | Get publishing quota |
-| `threads users mentions` | `GET /{user-id}/mentions` | Get posts mentioning you |
-
-Base URL: `https://graph.threads.net`
-
-## Troubleshooting
-
-### Authentication Errors
-
-**"Token expired"**
-```bash
-# Refresh your token (requires stored client secret)
-threads auth refresh
-
-# Or re-authenticate
-threads auth login
-```
-
-**"Invalid token" or 401 errors**
-- Verify your token hasn't been revoked in Meta Developer Console
-- Check that your app has the required permissions
-- Re-authenticate: `threads auth login`
-
-**"Client ID and secret required"**
-```bash
-export THREADS_CLIENT_ID="your-app-id"
-export THREADS_CLIENT_SECRET="your-app-secret"
-```
-
-### Rate Limits
-
-**HTTP 429 or rate limit errors**
-```bash
-# Check current rate limit status
-threads ratelimit status
-
-# Check publishing quota
-threads ratelimit publishing
-```
-
-The API has these limits (per 24-hour window):
-- **Posts**: 250 posts/day
-- **Replies**: 1000 replies/day
-- **Deletes**: 25 deletes/day
-
-When rate limited, wait for the reset period or reduce request frequency.
-
-### Token Expiry
-
-Long-lived tokens expire after **60 days**. The CLI shows warnings when tokens are expiring soon.
-
-```bash
-# Check token status
-threads auth status
-
-# Refresh before expiry
-threads auth refresh
-```
-
-Set up a cron job to auto-refresh:
-```bash
-# Add to crontab (runs weekly)
-0 0 * * 0 threads auth refresh
-```
-
-### Common Issues
-
-**"Cannot prompt for confirmation: stdin is not a terminal"**
-- Running in a non-interactive context (scripts, CI)
-- Use `--yes` flag to skip prompts: `threads posts delete ID --yes`
-
-**"Post validation failed"**
-- Text exceeds 500 characters
-- Carousel has fewer than 2 or more than 20 items
-- Invalid media URL format
-
-**"Container error" or media upload failures**
-- Verify media URL is publicly accessible
-- Check media format is supported (JPEG, PNG for images; MP4, MOV for videos)
-- Video must be under 5 minutes
-
-## Workflow Examples
+## Examples
 
 ### Post with Image and Get Insights
 
@@ -310,7 +230,7 @@ POST_ID=$(threads posts create \
   --alt-text "Mountain sunset" \
   -o json | jq -r '.id')
 
-# Wait for post to be indexed (a few seconds)
+# Wait for post to be indexed
 sleep 5
 
 # Get post insights
@@ -338,19 +258,6 @@ threads users mentions -o json | jq '.data[] | {from: .username, text: .text}'
 threads replies create MENTION_POST_ID --text "Thanks for the mention!"
 ```
 
-### Bulk Operations with JQ
-
-```bash
-# Get all post IDs from last 10 posts
-threads posts list --limit 10 -o json | jq -r '.posts[].id'
-
-# Get total views across recent posts
-threads posts list --limit 10 -o json -q '[.posts[].id] | length'
-
-# Export posts to CSV
-threads posts list -o json | jq -r '.posts[] | [.id, .text, .timestamp] | @csv'
-```
-
 ### Carousel Post Workflow
 
 ```bash
@@ -361,6 +268,53 @@ threads posts carousel \
   --alt-text "Beach sunset" \
   --alt-text "Mountain view" \
   --alt-text "City skyline"
+```
+
+### Automation
+
+Use `--yes` to skip confirmations and `--limit` to control result size:
+
+```bash
+# Delete a post without confirmation prompt
+threads posts delete POST_ID --yes
+
+# Get the 10 most recent posts
+threads posts list --limit 10 --output json
+
+# Pipeline: get all post IDs from last 10 posts
+threads posts list --limit 10 -o json | jq -r '.posts[].id'
+
+# Export posts to CSV
+threads posts list -o json | jq -r '.posts[] | [.id, .text, .timestamp] | @csv'
+```
+
+### Switch Between Accounts
+
+```bash
+# Check primary account
+threads posts list --account personal
+
+# Check business account
+threads posts list --account business
+
+# Or set default
+export THREADS_ACCOUNT=personal
+threads posts list
+```
+
+### JQ Filtering
+
+Filter JSON output with JQ expressions:
+
+```bash
+# Get only the first post ID
+threads posts list --output json --query '.posts[0].id'
+
+# Extract all post texts
+threads posts list --output json --query '[.posts[].text]'
+
+# Filter posts with images
+threads posts list --output json --query '.posts[] | select(.media_type=="IMAGE")'
 ```
 
 ### Scheduled Posting (with cron)
@@ -383,9 +337,144 @@ fi
 0 9 * * * ~/scripts/scheduled-post.sh
 ```
 
+### Token Refresh Automation
+
+Long-lived tokens expire after 60 days. Set up auto-refresh:
+
+```bash
+# Check token status
+threads auth status
+
+# Refresh before expiry
+threads auth refresh
+```
+
+```cron
+# Add to crontab (runs weekly)
+0 0 * * 0 threads auth refresh
+```
+
+## Global Flags
+
+All commands support these flags:
+
+- `--account <name>`, `-a` - Account to use (overrides THREADS_ACCOUNT)
+- `--output <format>`, `-o` - Output format: `text` or `json` (default: text)
+- `--query <expr>`, `-q` - JQ filter expression for JSON output
+- `--yes`, `-y` - Skip confirmation prompts (useful for scripts and automation)
+- `--limit <n>` - Limit number of results returned
+- `--debug` - Enable debug output
+- `--help` - Show help for any command
+- `--version` - Show version information
+
+## Shell Completions
+
+Generate shell completions for your preferred shell:
+
+### Bash
+
+```bash
+# macOS (Homebrew):
+threads completion bash > $(brew --prefix)/etc/bash_completion.d/threads
+
+# Linux:
+threads completion bash > /etc/bash_completion.d/threads
+
+# Or source directly in current session:
+source <(threads completion bash)
+```
+
+### Zsh
+
+```zsh
+# Save to fpath:
+threads completion zsh > "${fpath[1]}/_threads"
+
+# Or add to .zshrc for auto-loading:
+echo 'autoload -U compinit; compinit' >> ~/.zshrc
+echo 'source <(threads completion zsh)' >> ~/.zshrc
+```
+
+### Fish
+
+```fish
+threads completion fish > ~/.config/fish/completions/threads.fish
+```
+
+### PowerShell
+
+```powershell
+# Load for current session:
+threads completion powershell | Out-String | Invoke-Expression
+
+# Or add to profile for persistence:
+threads completion powershell >> $PROFILE
+```
+
+## API Reference
+
+CLI commands map to Threads Graph API endpoints:
+
+| Command | API Endpoint |
+|---------|-------------|
+| `threads me` | `GET /me` |
+| `threads users get ID` | `GET /{user-id}` |
+| `threads posts create` | `POST /{user-id}/threads` + `POST /{container-id}/threads_publish` |
+| `threads posts get ID` | `GET /{post-id}` |
+| `threads posts list` | `GET /{user-id}/threads` |
+| `threads posts delete ID` | `DELETE /{post-id}` |
+| `threads replies list ID` | `GET /{post-id}/replies` |
+| `threads replies create ID` | `POST /{user-id}/threads` (reply_to_id) |
+| `threads insights post ID` | `GET /{post-id}/insights` |
+| `threads insights account` | `GET /{user-id}/threads_insights` |
+| `threads search QUERY` | `GET /{user-id}/threads_keyword_search` |
+| `threads locations search` | `GET /locations_search` |
+| `threads ratelimit publishing` | `GET /{user-id}/threads_publishing_limit` |
+| `threads users mentions` | `GET /{user-id}/mentions` |
+
+Base URL: `https://graph.threads.net`
+
+## Troubleshooting
+
+### Authentication Errors
+
+**"Token expired"**
+```bash
+threads auth refresh  # Requires stored client secret
+# Or re-authenticate
+threads auth login
+```
+
+**"Invalid token" or 401 errors**
+- Verify your token hasn't been revoked in Meta Developer Console
+- Check that your app has the required permissions
+- Re-authenticate: `threads auth login`
+
+**"Client ID and secret required"**
+```bash
+export THREADS_CLIENT_ID="your-app-id"
+export THREADS_CLIENT_SECRET="your-app-secret"
+```
+
+### Common Issues
+
+**"Cannot prompt for confirmation: stdin is not a terminal"**
+- Running in a non-interactive context (scripts, CI)
+- Use `--yes` flag to skip prompts: `threads posts delete ID --yes`
+
+**"Post validation failed"**
+- Text exceeds 500 characters
+- Carousel has fewer than 2 or more than 20 items
+- Invalid media URL format
+
+**"Container error" or media upload failures**
+- Verify media URL is publicly accessible
+- Check media format is supported (JPEG, PNG for images; MP4, MOV for videos)
+- Video must be under 5 minutes
+
 ## Go Library
 
-This CLI is built on a comprehensive Go client library. You can also use the library directly:
+This CLI is built on a comprehensive Go client library:
 
 ```go
 import threads "github.com/salmonumbrella/threads-go"
@@ -409,9 +498,10 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT
 
-## Credits
+## Links
 
-- CLI built on [tirthpatell/threads-go](https://github.com/tirthpatell/threads-go) library
-- Inspired by [airwallex-cli](https://github.com/salmonumbrella/airwallex-cli) patterns
+- [Threads API Documentation](https://developers.facebook.com/docs/threads)
+- [Go Package Documentation](https://pkg.go.dev/github.com/salmonumbrella/threads-go)
+- [GitHub Repository](https://github.com/salmonumbrella/threads-go)

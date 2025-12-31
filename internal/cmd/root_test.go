@@ -215,3 +215,26 @@ func TestRequireAccount_NoAccount(t *testing.T) {
 	// The test verifies the function runs without panic
 	_ = err
 }
+
+func TestConfirm_NonTTY(t *testing.T) {
+	// When yesFlag is false and stdin is not a TTY,
+	// confirm should return false
+	oldYesFlag := yesFlag
+	yesFlag = false
+	defer func() { yesFlag = oldYesFlag }()
+
+	// In test environment, stdin is typically not a TTY
+	// This test verifies confirm returns false in non-TTY mode
+	// Note: We can't fully test this without mocking os.Stdin,
+	// but we can verify the function doesn't hang/block
+	// when stdin is non-interactive (which it is in tests)
+
+	// The actual TTY detection is tested implicitly:
+	// if this test doesn't hang, the TTY check is working
+	result := confirm("Test prompt?")
+
+	// In a non-TTY environment without --yes, should return false
+	if result {
+		t.Error("expected confirm to return false in non-TTY mode without --yes")
+	}
+}

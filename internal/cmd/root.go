@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/salmonumbrella/threads-go/internal/iocontext"
 	"github.com/salmonumbrella/threads-go/internal/outfmt"
@@ -151,16 +152,28 @@ func getAccount() string {
 func requireAccount() (string, error) {
 	account := getAccount()
 	if account == "" {
-		return "", fmt.Errorf("no account configured. Run 'threads auth login' to authenticate")
+		return "", &UserFriendlyError{
+			Message:    "No Threads account configured",
+			Suggestion: "Run 'threads auth login' to authenticate with your Threads account",
+		}
 	}
 	return account, nil
 }
 
-// confirm prompts for confirmation unless --yes is set
+// confirm prompts for confirmation unless --yes is set.
+// Returns false with an error message if stdin is not a TTY.
 func confirm(prompt string) bool {
 	if yesFlag {
 		return true
 	}
+
+	// Check if stdin is a terminal
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Fprintln(os.Stderr, "error: cannot prompt for confirmation (stdin is not a terminal)")
+		fmt.Fprintln(os.Stderr, "hint: use --yes (-y) to skip confirmation in non-interactive mode")
+		return false
+	}
+
 	fmt.Printf("%s [y/N]: ", prompt)
 	var response string
 	//nolint:errcheck,gosec // Scanln error is fine - empty response means "no"

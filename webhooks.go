@@ -192,17 +192,16 @@ func (c *Client) DeleteWebhookSubscription(ctx context.Context, subscriptionID s
 	token := c.accessToken
 	c.mu.RUnlock()
 
-	// For deleting specific object subscriptions, we need to POST with empty fields
-	// or DELETE to /{app-id}/subscriptions with the object parameter
-	formData := url.Values{}
-	formData.Set("object", subscriptionID) // The subscription ID is actually the object type for Meta's API
-	formData.Set("access_token", token)
+	// DELETE /{app-id}/subscriptions with the object parameter
+	// The subscription ID is actually the object type for Meta's API (e.g., "instagram", "page")
+	queryParams := url.Values{}
+	queryParams.Set("object", subscriptionID)
 
-	// DELETE /{app-id}/subscriptions
-	resp, err := c.httpClient.DELETE(
-		fmt.Sprintf("/v1.0/%s/subscriptions", appID),
-		token,
-	)
+	resp, err := c.httpClient.Do(&RequestOptions{
+		Method:      "DELETE",
+		Path:        fmt.Sprintf("/v1.0/%s/subscriptions", appID),
+		QueryParams: queryParams,
+	}, token)
 	if err != nil {
 		return err
 	}

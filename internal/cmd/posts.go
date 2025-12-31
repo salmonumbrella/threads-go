@@ -848,7 +848,9 @@ Examples:
 
 				expires := "N/A"
 				if !post.GhostPostExpirationTimestamp.IsZero() {
-					expires = post.GhostPostExpirationTimestamp.Format("2006-01-02 15:04")
+					absTime := post.GhostPostExpirationTimestamp.Format("2006-01-02 15:04")
+					relTime := ui.FormatRelativeTime(post.GhostPostExpirationTimestamp.Time)
+					expires = fmt.Sprintf("%s (%s)", absTime, relTime)
 				}
 
 				status := post.GhostPostStatus
