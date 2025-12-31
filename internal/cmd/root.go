@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/salmonumbrella/threads-go/internal/iocontext"
 	"github.com/salmonumbrella/threads-go/internal/outfmt"
 	"github.com/salmonumbrella/threads-go/internal/secrets"
 )
@@ -46,14 +47,26 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		ctx := cmd.Context()
+
+		// Inject IO context (if not already set for testing)
+		if !iocontext.HasIO(ctx) {
+			ctx = iocontext.WithIO(ctx, iocontext.DefaultIO())
+		}
+
 		// Set up output format context
 		format := outfmt.Text
 		if outputFormat == "json" {
 			format = outfmt.JSON
 		}
-		ctx := outfmt.NewContext(cmd.Context(), format)
-		cmd.SetContext(ctx)
+		ctx = outfmt.NewContext(ctx, format)
 
+		// Add additional context values
+		ctx = outfmt.WithQuery(ctx, jqQuery)
+		ctx = outfmt.WithYes(ctx, yesFlag)
+		ctx = outfmt.WithLimit(ctx, limitFlag)
+
+		cmd.SetContext(ctx)
 		return nil
 	},
 }
