@@ -69,8 +69,7 @@ func runUsersMe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get user info: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(userToMap(user), jqQuery)
 	}
 
@@ -92,8 +91,7 @@ func runUsersGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(userToMap(user), jqQuery)
 	}
 
@@ -115,8 +113,7 @@ func runUsersLookup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to lookup profile: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(publicUserToMap(publicUser), jqQuery)
 	}
 

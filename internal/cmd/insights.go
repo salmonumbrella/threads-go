@@ -78,9 +78,7 @@ func runInsightsPost(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get post insights: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(insights, jqQuery)
 	}
 
@@ -128,9 +126,7 @@ func runInsightsAccount(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get account insights: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(insights, jqQuery)
 	}
 

@@ -315,9 +315,8 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(map[string]any{
 			"account":    account,
 			"user_id":    creds.UserID,
@@ -369,9 +368,8 @@ func runAuthList(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		var result []map[string]any
 		for _, name := range accounts {
 			creds, _ := store.Get(name)

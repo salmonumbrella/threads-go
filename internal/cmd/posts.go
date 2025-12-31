@@ -156,8 +156,7 @@ func runPostsCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create post: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(post, jqQuery)
 	}
 
@@ -189,8 +188,7 @@ func runPostsGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get post: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(post, jqQuery)
 	}
 
@@ -246,8 +244,7 @@ func runPostsList(cmd *cobra.Command, args []string) error {
 		posts = posts[:limitFlag]
 	}
 
-	format := outfmt.FromContext(ctx)
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(map[string]any{
 			"posts":  posts,
 			"paging": postsResp.Paging,

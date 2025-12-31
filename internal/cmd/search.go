@@ -49,9 +49,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("search failed: %w", err)
 	}
 
-	format := outfmt.FromContext(ctx)
-
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(results, jqQuery)
 	}
 

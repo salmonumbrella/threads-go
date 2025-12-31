@@ -107,9 +107,8 @@ func runRepliesList(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(replies, jqQuery)
 	}
 
@@ -159,9 +158,8 @@ func runRepliesCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(reply, jqQuery)
 	}
 
@@ -185,9 +183,8 @@ func runRepliesHide(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(map[string]any{
 			"success":  true,
 			"reply_id": replyID,
@@ -212,9 +209,8 @@ func runRepliesUnhide(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(map[string]any{
 			"success":  true,
 			"reply_id": replyID,
@@ -245,9 +241,8 @@ func runRepliesConversation(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	format := outfmt.FromContext(ctx)
 
-	if format == outfmt.JSON {
+	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(conversation, jqQuery)
 	}
 
