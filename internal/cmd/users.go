@@ -197,12 +197,11 @@ func printPublicUserText(u *threads.PublicUser) {
 
 func newUsersMentionsCmd() *cobra.Command {
 	var limit int
-	var after string
+	var cursor string
 
 	cmd := &cobra.Command{
 		Use:   "mentions",
 		Short: "List posts mentioning you",
-		Long:  `List posts where the authenticated user is mentioned.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -211,64 +210,59 @@ func newUsersMentionsCmd() *cobra.Command {
 				return err
 			}
 
-			// Get authenticated user
 			me, err := client.GetMe(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to get user info: %w", err)
+				return err
 			}
 
 			opts := &threads.PaginationOptions{
 				Limit: limit,
-				After: after,
+				After: cursor,
 			}
 
 			result, err := client.GetUserMentions(ctx, threads.UserID(me.ID), opts)
 			if err != nil {
-				return fmt.Errorf("failed to get mentions: %w", err)
+				return err
 			}
 
 			// JSON output
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSON(map[string]any{
-					"posts":  result.Data,
-					"paging": result.Paging,
-				}, jqQuery)
+				return outfmt.WriteJSON(result, jqQuery)
 			}
 
-			// Text output
+			f := outfmt.FromContext(ctx)
+
 			if len(result.Data) == 0 {
-				ui.Info("No mentions found")
+				f.Empty("No mentions found")
 				return nil
 			}
 
-			f := outfmt.NewFormatter()
-			f.Header("ID", "FROM", "TEXT", "TIMESTAMP")
-
-			for _, post := range result.Data {
+			headers := []string{"ID", "FROM", "TEXT", "TIMESTAMP"}
+			rows := make([][]string, len(result.Data))
+			for i, post := range result.Data {
 				text := post.Text
 				if len(text) > 50 {
 					text = text[:47] + "..."
 				}
-				f.Row(
+				rows[i] = []string{
 					post.ID,
-					"@"+post.Username,
+					"@" + post.Username,
 					text,
 					post.Timestamp.Format("2006-01-02 15:04"),
-				)
-			}
-			f.Flush()
-
-			// Show pagination hint if there are more results
-			if result.Paging.Cursors != nil && result.Paging.Cursors.After != "" {
-				fmt.Printf("\nMore results available. Use --after %s to see next page.\n", result.Paging.Cursors.After)
+				}
 			}
 
-			return nil
+			return f.Table(headers, rows, []outfmt.ColumnType{
+				outfmt.ColumnID,
+				outfmt.ColumnPlain,
+				outfmt.ColumnPlain,
+				outfmt.ColumnDate,
+			})
 		},
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum results")
-	cmd.Flags().StringVar(&after, "after", "", "Pagination cursor for next page")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor")
 
 	return cmd
 }
