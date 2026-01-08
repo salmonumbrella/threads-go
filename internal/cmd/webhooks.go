@@ -76,11 +76,8 @@ Supported events:
 				}
 			}
 
-			if !strings.HasPrefix(callbackURL, "https://") {
-				return &UserFriendlyError{
-					Message:    "Callback URL must use HTTPS",
-					Suggestion: "Meta requires HTTPS for webhook callbacks. Use a URL like https://example.com/webhooks",
-				}
+			if err := ValidateHTTPSURL(callbackURL, "Callback URL"); err != nil {
+				return err
 			}
 
 			if len(events) == 0 {
