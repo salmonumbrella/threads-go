@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"golang.org/x/term"
 
@@ -26,7 +27,7 @@ type Factory struct {
 	Debug      bool
 	Account    string
 	debugLog   threads.Logger
-	prepareLog bool
+	loggerOnce sync.Once
 }
 
 // FactoryOptions allows overriding factory dependencies (mainly for tests).
@@ -152,11 +153,9 @@ func (f *Factory) resolveAccount() (string, error) {
 }
 
 func (f *Factory) logger() threads.Logger {
-	if f.prepareLog {
-		return f.debugLog
-	}
-	f.prepareLog = true
-	f.debugLog = newStderrLogger(f.IO.ErrOut)
+	f.loggerOnce.Do(func() {
+		f.debugLog = newStderrLogger(f.IO.ErrOut)
+	})
 	return f.debugLog
 }
 
