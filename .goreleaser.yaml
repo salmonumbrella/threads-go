@@ -20,9 +20,9 @@ builds:
       - CGO_ENABLED=1
     ldflags:
       - -s -w
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.Version={{.Version}}
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.Commit={{.ShortCommit}}
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.BuildDate={{.Date}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.BuildDate={{.Date}}
 
   # Linux/Windows builds without CGO
   - id: threads-other
@@ -41,9 +41,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.Version={{.Version}}
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.Commit={{.ShortCommit}}
-      - -X github.com/salmonumbrella/threads-go/internal/cmd.BuildDate={{.Date}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/threads-cli/internal/cmd.BuildDate={{.Date}}
 
 archives:
   - id: default
@@ -75,7 +75,7 @@ changelog:
 release:
   github:
     owner: salmonumbrella
-    name: threads-go
+    name: threads-cli
   draft: false
   prerelease: auto
   name_template: "{{.Tag}}"
