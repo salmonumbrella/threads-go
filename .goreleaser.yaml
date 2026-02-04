@@ -72,6 +72,21 @@ changelog:
       - Merge pull request
       - Merge branch
 
+brews:
+  - name: threads-cli
+    repository:
+      owner: salmonumbrella
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/salmonumbrella/threads-cli"
+    description: "CLI for Threads API by Meta - manage posts, replies, insights"
+    license: "MIT"
+    install: |
+      bin.install "threads"
+    test: |
+      system "#{bin}/threads", "--help"
+
 release:
   github:
     owner: salmonumbrella
