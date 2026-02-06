@@ -45,6 +45,7 @@ func NewPostsCmd(f *Factory) *cobra.Command {
 type postsCreateOptions struct {
 	Text         string
 	TextFile     string
+	Emit         string
 	ImageURL     string
 	VideoURL     string
 	AltText      string
@@ -102,6 +103,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&opts.Text, "text", "t", "", "Post text content")
 	cmd.Flags().StringVar(&opts.TextFile, "text-file", "", "Read post text content from a file (or '-' for stdin)")
+	cmd.Flags().StringVar(&opts.Emit, "emit", "", "Emit: json|id|url (useful for chaining; suppresses extra text output)")
 	cmd.Flags().StringVar(&opts.ImageURL, "image", "", "Image URL for image posts")
 	cmd.Flags().StringVar(&opts.VideoURL, "video", "", "Video URL for video posts")
 	cmd.Flags().StringVar(&opts.AltText, "alt-text", "", "Alt text for media accessibility")
@@ -275,6 +277,14 @@ func runPostsCreate(cmd *cobra.Command, f *Factory, opts *postsCreateOptions) er
 	}
 
 	io := iocontext.GetIO(ctx)
+	if cmd.Flags().Changed("emit") {
+		mode, errEmit := parseEmitMode(opts.Emit)
+		if errEmit != nil {
+			return errEmit
+		}
+		return emitResult(ctx, io, mode, post.ID, post.Permalink, post)
+	}
+
 	if outfmt.IsJSON(ctx) {
 		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 		return out.Output(post)
@@ -546,6 +556,7 @@ func newPostsCarouselCmd(f *Factory) *cobra.Command {
 	opts := &postsCarouselOptions{
 		TimeoutSecs: 300,
 	}
+	var emit string
 
 	cmd := &cobra.Command{
 		Use:     "carousel",
@@ -561,7 +572,7 @@ for accessibility using --alt-text (one per item, in order).`,
   # With caption and alt text
   threads posts carousel --items url1,url2 --text "My photos" --alt-text "First" --alt-text "Second"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPostsCarousel(cmd, f, opts)
+			return runPostsCarousel(cmd, f, opts, emit)
 		},
 	}
 
@@ -570,13 +581,14 @@ for accessibility using --alt-text (one per item, in order).`,
 	cmd.Flags().StringSliceVar(&opts.AltTexts, "alt-text", nil, "Alt text for each item (in order)")
 	cmd.Flags().StringVar(&opts.ReplyTo, "reply-to", "", "Post ID to reply to")
 	cmd.Flags().IntVar(&opts.TimeoutSecs, "timeout", 300, "Timeout in seconds for container processing")
+	cmd.Flags().StringVar(&emit, "emit", "", "Emit: json|id|url (useful for chaining; suppresses extra text output)")
 	//nolint:errcheck,gosec // MarkFlagRequired cannot fail for a flag that exists
 	cmd.MarkFlagRequired("items")
 
 	return cmd
 }
 
-func runPostsCarousel(cmd *cobra.Command, f *Factory, opts *postsCarouselOptions) error {
+func runPostsCarousel(cmd *cobra.Command, f *Factory, opts *postsCarouselOptions, emit string) error {
 	if len(opts.Items) < 2 {
 		return &UserFriendlyError{
 			Message:    "Carousel requires at least 2 items",
@@ -630,6 +642,13 @@ func runPostsCarousel(cmd *cobra.Command, f *Factory, opts *postsCarouselOptions
 	}
 
 	io := iocontext.GetIO(ctx)
+	if cmd.Flags().Changed("emit") {
+		mode, errEmit := parseEmitMode(emit)
+		if errEmit != nil {
+			return errEmit
+		}
+		return emitResult(ctx, io, mode, post.ID, post.Permalink, post)
+	}
 	if outfmt.IsJSON(ctx) {
 		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 		return out.Output(post)
@@ -653,6 +672,7 @@ func runPostsCarousel(cmd *cobra.Command, f *Factory, opts *postsCarouselOptions
 func newPostsQuoteCmd(f *Factory) *cobra.Command {
 	var text string
 	var textFile string
+	var emit string
 	var imageURL string
 	var videoURL string
 
@@ -717,6 +737,13 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
+			if cmd.Flags().Changed("emit") {
+				mode, errEmit := parseEmitMode(emit)
+				if errEmit != nil {
+					return errEmit
+				}
+				return emitResult(ctx, io, mode, post.ID, post.Permalink, post)
+			}
 			if outfmt.IsJSON(ctx) {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 				return out.Output(post)
@@ -739,6 +766,7 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 
 	cmd.Flags().StringVar(&text, "text", "", "Quote text")
 	cmd.Flags().StringVar(&textFile, "text-file", "", "Read quote text from a file (or '-' for stdin)")
+	cmd.Flags().StringVar(&emit, "emit", "", "Emit: json|id|url (useful for chaining; suppresses extra text output)")
 	cmd.Flags().StringVar(&imageURL, "image", "", "Image URL to include")
 	cmd.Flags().StringVar(&videoURL, "video", "", "Video URL to include")
 
@@ -746,6 +774,7 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 }
 
 func newPostsRepostCmd(f *Factory) *cobra.Command {
+	var emit string
 	cmd := &cobra.Command{
 		Use:     "repost [post-id]",
 		Aliases: []string{"boost"},
@@ -770,6 +799,13 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
+			if cmd.Flags().Changed("emit") {
+				mode, errEmit := parseEmitMode(emit)
+				if errEmit != nil {
+					return errEmit
+				}
+				return emitResult(ctx, io, mode, post.ID, post.Permalink, post)
+			}
 			if outfmt.IsJSON(ctx) {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 				return out.Output(post)
@@ -781,6 +817,7 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&emit, "emit", "", "Emit: json|id|url (useful for chaining; suppresses extra text output)")
 	return cmd
 }
 

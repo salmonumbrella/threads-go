@@ -106,6 +106,7 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 func newRepliesCreateCmd(f *Factory) *cobra.Command {
 	var text string
 	var textFile string
+	var emit string
 
 	cmd := &cobra.Command{
 		Use:     "create [post-id]",
@@ -156,6 +157,13 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
+			if cmd.Flags().Changed("emit") {
+				mode, errEmit := parseEmitMode(emit)
+				if errEmit != nil {
+					return errEmit
+				}
+				return emitResult(ctx, io, mode, reply.ID, reply.Permalink, reply)
+			}
 			if outfmt.IsJSON(ctx) {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 				return out.Output(reply)
@@ -168,6 +176,7 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Text content for the reply (required)")
 	cmd.Flags().StringVar(&textFile, "text-file", "", "Read reply text from a file (or '-' for stdin)")
+	cmd.Flags().StringVar(&emit, "emit", "", "Emit: json|id|url (useful for chaining; suppresses extra text output)")
 	return cmd
 }
 

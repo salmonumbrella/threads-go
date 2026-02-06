@@ -117,6 +117,13 @@ func TestRepliesCreateCmd_Flags(t *testing.T) {
 	if textFlag.Shorthand != "t" {
 		t.Errorf("expected text flag shorthand='t', got %s", textFlag.Shorthand)
 	}
+
+	if cmd.Flag("text-file") == nil {
+		t.Fatal("missing text-file flag")
+	}
+	if cmd.Flag("emit") == nil {
+		t.Fatal("missing emit flag")
+	}
 }
 
 func TestRepliesHideCmd_Structure(t *testing.T) {

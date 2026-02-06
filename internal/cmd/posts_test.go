@@ -65,6 +65,8 @@ func TestPostsCreateCmd_Flags(t *testing.T) {
 		shorthand string
 	}{
 		{"text", "t"},
+		{"text-file", ""},
+		{"emit", ""},
 		{"image", ""},
 		{"video", ""},
 		{"alt-text", ""},
@@ -700,6 +702,132 @@ func TestPostsGet_TableDriven(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPostsCreate_EmitID_Text(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/refresh_access_token":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		case "/12345/threads":
+			// create container
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "c1"})
+			return
+		case "/c1":
+			// container status
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":            "c1",
+				"status":        "FINISHED",
+				"error_message": "",
+			})
+			return
+		case "/12345/threads_publish":
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "p1"})
+			return
+		case "/p1":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":                 "p1",
+				"permalink":          "https://www.threads.net/t/p1",
+				"timestamp":          time.Now().UTC().Format(time.RFC3339),
+				"username":           "testuser",
+				"media_product_type": "THREADS",
+				"is_reply":           false,
+			})
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "text")
+
+	cmd := newPostsCreateCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"--text", "hi", "--emit", "id"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("posts create --emit id failed: %v", err)
+	}
+
+	out := io.Out.(*bytes.Buffer).String()
+	if out != "p1\n" {
+		t.Fatalf("expected id p1, got %q", out)
+	}
+}
+
+func TestPostsRepost_EmitID_Text(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/refresh_access_token":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		case "/orig/repost":
+			if r.Method != http.MethodPost {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "rp1"})
+			return
+		case "/rp1":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":                 "rp1",
+				"permalink":          "https://www.threads.net/t/rp1",
+				"timestamp":          time.Now().UTC().Format(time.RFC3339),
+				"username":           "testuser",
+				"media_product_type": "THREADS",
+				"is_reply":           false,
+			})
+			return
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "text")
+
+	cmd := newPostsRepostCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"orig", "--emit", "id"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("posts repost --emit id failed: %v", err)
+	}
+
+	out := io.Out.(*bytes.Buffer).String()
+	if out != "rp1\n" {
+		t.Fatalf("expected repost id rp1, got %q", out)
 	}
 }
 
