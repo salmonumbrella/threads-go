@@ -79,6 +79,12 @@ func TestNewListCommand_Flags(t *testing.T) {
 	if cursorFlag == nil {
 		t.Error("expected --cursor flag to exist")
 	}
+
+	// Check that --no-hints flag exists
+	noHintsFlag := cmd.Flag("no-hints")
+	if noHintsFlag == nil {
+		t.Error("expected --no-hints flag to exist")
+	}
 }
 
 func TestNewListCommand_TextOutput(t *testing.T) {
@@ -575,5 +581,94 @@ func TestListResult_Generic(t *testing.T) {
 	}
 	if result.Cursor != "page2" {
 		t.Errorf("expected Cursor to be page2, got %s", result.Cursor)
+	}
+}
+
+func TestNewListCommand_NoHints_Text(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cfg := ListConfig[mockPost]{
+		Use:     "list",
+		Short:   "List items",
+		Headers: []string{"ID"},
+		RowFunc: func(p mockPost) []string {
+			return []string{p.ID}
+		},
+		ColumnTypes: []outfmt.ColumnType{outfmt.ColumnID},
+		Fetch: func(ctx context.Context, client *api.Client, cursor string, limit int) (ListResult[mockPost], error) {
+			return ListResult[mockPost]{
+				Items:   []mockPost{{ID: "1"}},
+				HasMore: true,
+				Cursor:  "next_cursor",
+			}, nil
+		},
+	}
+
+	getClient := func(ctx context.Context) (*api.Client, error) {
+		return nil, nil
+	}
+
+	cmd := NewListCommand(cfg, getClient)
+
+	io := &iocontext.IO{Out: &stdout, ErrOut: &stderr}
+	ctx := iocontext.WithIO(context.Background(), io)
+	ctx = outfmt.WithFormat(ctx, "text")
+	cmd.SetContext(ctx)
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"--no-hints"})
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(stderr.String(), "More results") {
+		t.Fatalf("expected no hint on stderr with --no-hints, got: %q", stderr.String())
+	}
+}
+
+func TestNewListCommand_NoHints_JSONL(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cfg := ListConfig[mockPost]{
+		Use:     "list",
+		Short:   "List items",
+		Headers: []string{"ID"},
+		RowFunc: func(p mockPost) []string {
+			return []string{p.ID}
+		},
+		Fetch: func(ctx context.Context, client *api.Client, cursor string, limit int) (ListResult[mockPost], error) {
+			return ListResult[mockPost]{
+				Items:   []mockPost{{ID: "1"}},
+				HasMore: true,
+				Cursor:  "next_cursor",
+			}, nil
+		},
+	}
+
+	getClient := func(ctx context.Context) (*api.Client, error) {
+		return nil, nil
+	}
+
+	cmd := NewListCommand(cfg, getClient)
+
+	io := &iocontext.IO{Out: &stdout, ErrOut: &stderr}
+	ctx := iocontext.WithIO(context.Background(), io)
+	ctx = outfmt.WithFormat(ctx, "jsonl")
+	cmd.SetContext(ctx)
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"--no-hints"})
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(stderr.String(), "More results") {
+		t.Fatalf("expected no hint on stderr with --no-hints in JSONL mode, got: %q", stderr.String())
 	}
 }

@@ -37,6 +37,7 @@ type ListConfig[T any] struct {
 func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*api.Client, error)) *cobra.Command {
 	var limit int
 	var cursor string
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:     cfg.Use,
@@ -75,7 +76,7 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 				if err := out.Output(result.Items); err != nil {
 					return err
 				}
-				if result.HasMore && result.Cursor != "" {
+				if !noHints && result.HasMore && result.Cursor != "" {
 					fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", result.Cursor) //nolint:errcheck // Best-effort output to stderr
 				}
 				return nil
@@ -105,7 +106,7 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 			}
 
 			// Show pagination hint on stderr if there are more results
-			if result.HasMore && result.Cursor != "" {
+			if !noHints && result.HasMore && result.Cursor != "" {
 				fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", result.Cursor) //nolint:errcheck // Best-effort output to stderr
 			}
 
@@ -116,6 +117,7 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 	// Add flags
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of results (1-100)")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor for next page")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 
 	return cmd
 }
