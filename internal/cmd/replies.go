@@ -102,6 +102,7 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 
 func newRepliesCreateCmd(f *Factory) *cobra.Command {
 	var text string
+	var textFile string
 
 	cmd := &cobra.Command{
 		Use:     "create [post-id]",
@@ -109,7 +110,7 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 		Short:   "Reply to a post",
 		Long: `Create a reply to a specific post.
 
-	Provide the text of your reply with the --text flag.`,
+	Provide the text of your reply with --text or --text-file.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			postID, err := normalizeIDArg(args[0], "post")
@@ -117,6 +118,26 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 				return err
 			}
 			ctx := cmd.Context()
+
+			if strings.TrimSpace(text) != "" && strings.TrimSpace(textFile) != "" {
+				return &UserFriendlyError{
+					Message:    "Cannot use both --text and --text-file",
+					Suggestion: "Use --text for inline text, or --text-file to read from file/stdin",
+				}
+			}
+			if strings.TrimSpace(text) == "" && strings.TrimSpace(textFile) == "" {
+				return &UserFriendlyError{
+					Message:    "No reply text provided",
+					Suggestion: "Provide --text \"...\" or --text-file path (or '-' for stdin)",
+				}
+			}
+			if strings.TrimSpace(textFile) != "" {
+				txt, err := readTextFileOrStdin(ctx, textFile)
+				if err != nil {
+					return err
+				}
+				text = txt
+			}
 
 			client, err := f.Client(ctx)
 			if err != nil {
@@ -142,8 +163,7 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&text, "text", "t", "", "Text content for the reply (required)")
-	//nolint:errcheck,gosec // MarkFlagRequired cannot fail for a flag that exists
-	cmd.MarkFlagRequired("text")
+	cmd.Flags().StringVar(&textFile, "text-file", "", "Read reply text from a file (or '-' for stdin)")
 	return cmd
 }
 
