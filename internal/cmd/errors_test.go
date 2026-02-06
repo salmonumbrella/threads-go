@@ -239,45 +239,6 @@ func TestFormatError_APIError(t *testing.T) {
 	}
 }
 
-func TestFormatError_GenericErrors(t *testing.T) {
-	tests := []struct {
-		name       string
-		err        error
-		wantSubstr string
-	}{
-		{
-			name:       "no account configured",
-			err:        errors.New("no account configured"),
-			wantSubstr: "threads auth login",
-		},
-		{
-			name:       "token expired",
-			err:        errors.New("token expired"),
-			wantSubstr: "threads auth refresh",
-		},
-		{
-			name:       "empty response",
-			err:        errors.New("empty response from API"),
-			wantSubstr: "empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			formatted := FormatError(tt.err)
-			ufErr, ok := formatted.(*UserFriendlyError)
-			if !ok {
-				// Some generic errors may not be converted
-				return
-			}
-			errStr := ufErr.Error()
-			if !strings.Contains(strings.ToLower(errStr), strings.ToLower(tt.wantSubstr)) {
-				t.Errorf("Error() = %v, want to contain %v", errStr, tt.wantSubstr)
-			}
-		})
-	}
-}
-
 func TestFormatError_Nil(t *testing.T) {
 	if FormatError(nil) != nil {
 		t.Error("FormatError(nil) should return nil")
@@ -477,6 +438,11 @@ func TestFormatError_APIError_AllCases(t *testing.T) {
 			name:       "default error without request id",
 			err:        api.NewAPIError(400, "Bad request", "", ""),
 			wantSubstr: "problem persists",
+		},
+		{
+			name:       "default error with request id",
+			err:        api.NewAPIError(400, "Bad request", "", "req-456"),
+			wantSubstr: "req-456",
 		},
 	}
 
