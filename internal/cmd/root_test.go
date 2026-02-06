@@ -48,6 +48,7 @@ func TestRootCmd_HasSubcommands(t *testing.T) {
 		"auth",
 		"completion",
 		"config",
+		"help-json",
 		"insights",
 		"locations",
 		"me",

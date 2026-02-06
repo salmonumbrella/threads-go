@@ -59,7 +59,11 @@ func newUsersGetCmd(f *Factory) *cobra.Command {
 		Long:    `Retrieve user profile information by their user ID.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUsersGet(cmd, f, args[0])
+			userID, err := normalizeIDArg(args[0], "user")
+			if err != nil {
+				return err
+			}
+			return runUsersGet(cmd, f, userID)
 		},
 	}
 }

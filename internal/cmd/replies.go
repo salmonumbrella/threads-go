@@ -37,10 +37,13 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 		Short:   "List replies to a post",
 		Long: `List all replies to a specific post.
 
-Results are paginated and can be filtered with --limit.`,
+	Results are paginated and can be filtered with --limit.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			postID := args[0]
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -106,10 +109,13 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 		Short:   "Reply to a post",
 		Long: `Create a reply to a specific post.
 
-Provide the text of your reply with the --text flag.`,
+	Provide the text of your reply with the --text flag.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			postID := args[0]
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -149,10 +155,13 @@ func newRepliesHideCmd(f *Factory) *cobra.Command {
 		Long: `Hide a reply from public view.
 
 Hidden replies are not visible to other users but can be unhidden later.
-You can only hide replies on posts that you own.`,
+	You can only hide replies on posts that you own.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			replyID := args[0]
+			replyID, err := normalizeIDArg(args[0], "reply")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -189,7 +198,10 @@ func newRepliesUnhideCmd(f *Factory) *cobra.Command {
 		Long:    `Unhide a previously hidden reply, making it visible again.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			replyID := args[0]
+			replyID, err := normalizeIDArg(args[0], "reply")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -227,10 +239,13 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 		Short:   "Get full conversation thread",
 		Long: `Get the full conversation thread for a post.
 
-Returns all replies in the conversation in a flattened format.`,
+	Returns all replies in the conversation in a flattened format.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			postID := args[0]
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)

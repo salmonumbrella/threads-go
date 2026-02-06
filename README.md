@@ -390,6 +390,17 @@ All commands support these flags:
 
 Note: many list-style commands also support `--limit` (and sometimes `--cursor`) as command-specific flags.
 
+## Agent Discovery
+
+To make agents and scripts more reliable, `threads` includes a JSON help command:
+
+```bash
+threads help-json
+threads help-json posts get
+```
+
+IDs also accept common shorthands like `#123` and `post:123` (depending on the command).
+
 ## Shell Completions
 
 Generate shell completions for your preferred shell:

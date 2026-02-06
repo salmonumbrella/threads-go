@@ -184,6 +184,7 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 	cmd.AddCommand(NewVersionCmd())
 	cmd.AddCommand(NewWebhooksCmd(f))
 	cmd.AddCommand(NewConfigCmd(f))
+	cmd.AddCommand(NewHelpJSONCmd())
 
 	return cmd
 }

@@ -43,6 +43,12 @@ Goal: make `threads` maximally usable by an automated agent. That means fewer ro
 ## Next (Planned)
 
 - Accept pasted Threads permalinks/URLs wherever an ID is accepted (posts/replies/users where feasible).
-- Add `--help-json` (machine-readable command discovery).
+- Add `help-json` (machine-readable command discovery). (Completed)
 - Consider `--emit id|url|json` for “find/search” style commands to make chaining trivial without `jq`.
 
+## Phase 5: Help + ID Shorthands (Completed)
+
+- Add `threads help-json [command...]` for machine-readable command discovery.
+- Normalize common ID shorthands for agent inputs:
+  - `#123`
+  - `post:123` / `reply:123` / `user:123` (validated by context)

@@ -289,11 +289,15 @@ func newPostsGetCmd(f *Factory) *cobra.Command {
 		Short:   "Get a single post by ID",
 		Long: `Retrieve a single post by its ID.
 
-Example:
-  threads posts get 12345678901234567`,
+		Example:
+	  threads posts get 12345678901234567`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPostsGet(cmd, f, args[0])
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
+			return runPostsGet(cmd, f, postID)
 		},
 	}
 	return cmd
@@ -438,10 +442,14 @@ Requires confirmation unless --yes flag is provided.
 
 Example:
   threads posts delete 12345678901234567
-  threads posts delete 12345678901234567 --yes`,
+	  threads posts delete 12345678901234567 --yes`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPostsDelete(cmd, f, args[0])
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
+			return runPostsDelete(cmd, f, postID)
 		},
 	}
 	return cmd
@@ -630,12 +638,15 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 		Long:    "Quote an existing post with optional text, image, or video.",
 		Args:    cobra.ExactArgs(1),
 		Example: `  # Quote with text
-  threads posts quote 12345 --text "Great point!"
+	  threads posts quote 12345 --text "Great point!"
 
-  # Quote with image
-  threads posts quote 12345 --image https://example.com/image.jpg --text "Check this out"`,
+	  # Quote with image
+	  threads posts quote 12345 --image https://example.com/image.jpg --text "Check this out"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			quotedPostID := args[0]
+			quotedPostID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -701,7 +712,10 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		Example: `  threads posts repost 12345`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			postID := args[0]
+			postID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 
 			client, err := f.Client(ctx)
@@ -741,13 +755,16 @@ The repost ID is returned when you create a repost.
 Requires confirmation unless --yes flag is provided.`,
 		Args: cobra.ExactArgs(1),
 		Example: `  # Remove a repost with confirmation
-  threads posts unrepost 12345678901234567
+	  threads posts unrepost 12345678901234567
 
-  # Remove a repost without confirmation
-  threads posts unrepost 12345678901234567 --yes`,
+	  # Remove a repost without confirmation
+	  threads posts unrepost 12345678901234567 --yes`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			repostID := args[0]
+			repostID, err := normalizeIDArg(args[0], "post")
+			if err != nil {
+				return err
+			}
 
 			client, err := f.Client(ctx)
 			if err != nil {
