@@ -207,10 +207,10 @@ func applyConfigValue(cfg *config.Config, key, value string) error {
 	case "account":
 		cfg.Account = value
 	case "output":
-		if value != "" && value != "text" && value != "json" {
+		if value != "" && value != "text" && value != "json" && value != "jsonl" {
 			return &UserFriendlyError{
 				Message:    fmt.Sprintf("Invalid output value: %s", value),
-				Suggestion: "Valid values: text, json",
+				Suggestion: "Valid values: text, json, jsonl",
 			}
 		}
 		cfg.Output = value
