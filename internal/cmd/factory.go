@@ -96,8 +96,10 @@ func (f *Factory) UI(ctx context.Context) *ui.Printer {
 	return ui.NewWithWriters(out, io.ErrOut, color)
 }
 
-// Client returns a Threads client for the active account.
-func (f *Factory) Client(ctx context.Context) (*api.Client, error) {
+// ActiveCredentials returns the stored credentials for the active account.
+// This is useful for avoiding extra API calls (e.g. GetMe) when we already
+// have stable identifiers like user_id.
+func (f *Factory) ActiveCredentials(_ context.Context) (*secrets.Credentials, error) {
 	account, err := f.resolveAccount()
 	if err != nil {
 		return nil, err
@@ -118,6 +120,16 @@ func (f *Factory) Client(ctx context.Context) (*api.Client, error) {
 			Message:    "Your access token has expired",
 			Suggestion: "Run 'threads auth refresh' to get a new token, or 'threads auth login' to re-authenticate",
 		}
+	}
+
+	return creds, nil
+}
+
+// Client returns a Threads client for the active account.
+func (f *Factory) Client(ctx context.Context) (*api.Client, error) {
+	creds, err := f.ActiveCredentials(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	cfg := &api.Config{

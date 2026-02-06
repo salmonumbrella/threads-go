@@ -258,9 +258,9 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				return err
 			}
 
-			me, err := client.GetMe(ctx)
+			creds, err := f.ActiveCredentials(ctx)
 			if err != nil {
-				return WrapError("failed to get user info", err)
+				return err
 			}
 
 			opts := &api.PaginationOptions{
@@ -268,7 +268,7 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				After: cursor,
 			}
 
-			result, err := client.GetUserMentions(ctx, api.UserID(me.ID), opts)
+			result, err := client.GetUserMentions(ctx, api.UserID(creds.UserID), opts)
 			if err != nil {
 				return WrapError("failed to get mentions", err)
 			}

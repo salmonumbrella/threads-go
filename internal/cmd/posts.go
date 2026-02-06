@@ -405,9 +405,9 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
 		return err
 	}
 
-	me, err := client.GetMe(ctx)
+	creds, err := f.ActiveCredentials(ctx)
 	if err != nil {
-		return WrapError("failed to get user info", err)
+		return err
 	}
 
 	opts := &api.PaginationOptions{}
@@ -415,7 +415,7 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
 		opts.Limit = limit
 	}
 
-	postsResp, err := client.GetUserPosts(ctx, api.UserID(me.ID), opts)
+	postsResp, err := client.GetUserPosts(ctx, api.UserID(creds.UserID), opts)
 	if err != nil {
 		return WrapError("failed to list posts", err)
 	}
@@ -924,9 +924,9 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int) error {
 		return err
 	}
 
-	me, err := client.GetMe(ctx)
+	creds, err := f.ActiveCredentials(ctx)
 	if err != nil {
-		return WrapError("failed to get user info", err)
+		return err
 	}
 
 	opts := &api.PaginationOptions{}
@@ -934,7 +934,7 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int) error {
 		opts.Limit = limit
 	}
 
-	postsResp, err := client.GetUserGhostPosts(ctx, api.UserID(me.ID), opts)
+	postsResp, err := client.GetUserGhostPosts(ctx, api.UserID(creds.UserID), opts)
 	if err != nil {
 		return WrapError("failed to list ghost posts", err)
 	}

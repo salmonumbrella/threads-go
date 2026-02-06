@@ -174,9 +174,9 @@ func runInsightsAccount(cmd *cobra.Command, f *Factory, opts *insightsAccountOpt
 		}
 	}
 
-	user, err := client.GetMe(ctx)
+	creds, err := f.ActiveCredentials(ctx)
 	if err != nil {
-		return WrapError("failed to get user info", err)
+		return err
 	}
 
 	optsReq := &api.AccountInsightsOptions{
@@ -191,7 +191,7 @@ func runInsightsAccount(cmd *cobra.Command, f *Factory, opts *insightsAccountOpt
 		optsReq.Period = api.InsightPeriod(opts.Period)
 	}
 
-	insights, err := client.GetAccountInsightsWithOptions(ctx, api.UserID(user.ID), optsReq)
+	insights, err := client.GetAccountInsightsWithOptions(ctx, api.UserID(creds.UserID), optsReq)
 	if err != nil {
 		return WrapError("failed to get account insights", err)
 	}
@@ -203,7 +203,7 @@ func runInsightsAccount(cmd *cobra.Command, f *Factory, opts *insightsAccountOpt
 	}
 
 	p := f.UI(ctx)
-	p.Success("Account Insights for @%s", user.Username)
+	p.Success("Account Insights for @%s", creds.Username)
 	fmt.Fprintln(io.Out) //nolint:errcheck // Best-effort output
 
 	if len(insights.Data) == 0 {
