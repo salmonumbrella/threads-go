@@ -199,6 +199,7 @@ Results can be sorted by popularity (top) or recency (recent).`,
 				pageCursor := cursor
 				var allPosts []api.Post
 				var allRows [][]string
+				var lastPaging api.Paging
 
 				for {
 					opts.After = pageCursor
@@ -207,6 +208,7 @@ Results can be sorted by popularity (top) or recency (recent).`,
 						return WrapError("search failed", errPage)
 					}
 
+					lastPaging = page.Paging
 					next := pagingAfter(page.Paging)
 
 					if outfmt.IsJSONL(ctx) {
@@ -239,10 +241,12 @@ Results can be sorted by popularity (top) or recency (recent).`,
 				}
 
 				if outfmt.GetFormat(ctx) == outfmt.JSON {
-					return out.Output(map[string]any{
-						"data":   allPosts,
-						"paging": map[string]any{"after": pageCursor},
-					})
+					items := allPosts
+					if len(items) == 0 {
+						items = []api.Post{}
+					}
+					// After fetching all pages, cursor is empty and has_more=false.
+					return out.Output(itemsEnvelope(items, lastPaging, ""))
 				}
 				if outfmt.GetFormat(ctx) == outfmt.Text {
 					if len(allRows) == 0 {
@@ -271,7 +275,11 @@ Results can be sorted by popularity (top) or recency (recent).`,
 			}
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-				return out.Output(result)
+				items := result.Data
+				if len(items) == 0 {
+					items = []api.Post{}
+				}
+				return out.Output(itemsEnvelope(items, result.Paging, next))
 			}
 
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))

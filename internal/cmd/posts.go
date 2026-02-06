@@ -433,6 +433,8 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int, cursor string, all 
 	pageCursor := cursor
 	var allPosts []api.Post
 	firstPage := true
+	var nextCursor string
+	var lastPaging api.Paging
 
 	if outfmt.GetFormat(ctx) == outfmt.Text {
 		out.Header("ID", "TYPE", "TEXT", "TIMESTAMP")
@@ -447,7 +449,8 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int, cursor string, all 
 			return WrapError("failed to list posts", errList)
 		}
 		posts := postsResp.Data
-		next := pagingAfter(postsResp.Paging)
+		lastPaging = postsResp.Paging
+		nextCursor = pagingAfter(postsResp.Paging)
 
 		if outfmt.IsJSONL(ctx) {
 			if errOut := out.Output(posts); errOut != nil {
@@ -477,15 +480,15 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int, cursor string, all 
 				return nil
 			}
 			// Only show a hint for single-page runs.
-			emitHint(next)
+			emitHint(nextCursor)
 			break
 		}
 
 		// Stop when there is no next cursor or the API stops advancing.
-		if next == "" || next == pageCursor || len(posts) == 0 {
+		if nextCursor == "" || nextCursor == pageCursor || len(posts) == 0 {
 			break
 		}
-		pageCursor = next
+		pageCursor = nextCursor
 		firstPage = false
 	}
 
@@ -493,10 +496,15 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int, cursor string, all 
 		out.Flush()
 	}
 	if outfmt.GetFormat(ctx) == outfmt.JSON {
-		return out.Output(map[string]any{
-			"posts":  allPosts,
-			"paging": map[string]any{"after": pageCursor},
-		})
+		items := allPosts
+		if len(items) == 0 {
+			items = []api.Post{}
+		}
+		if all {
+			// After fetching all pages, cursor is empty and has_more=false.
+			return out.Output(itemsEnvelope(items, lastPaging, ""))
+		}
+		return out.Output(itemsEnvelope(items, lastPaging, nextCursor))
 	}
 	return nil
 
@@ -990,6 +998,8 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int, cursor string,
 	pageCursor := cursor
 	var allPosts []api.Post
 	firstPage := true
+	var nextCursor string
+	var lastPaging api.Paging
 
 	if outfmt.GetFormat(ctx) == outfmt.Text {
 		out.Header("ID", "TEXT", "EXPIRES", "STATUS")
@@ -1004,7 +1014,8 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int, cursor string,
 			return WrapError("failed to list ghost posts", errList)
 		}
 		posts := postsResp.Data
-		next := pagingAfter(postsResp.Paging)
+		lastPaging = postsResp.Paging
+		nextCursor = pagingAfter(postsResp.Paging)
 
 		if outfmt.IsJSONL(ctx) {
 			if errOut := out.Output(posts); errOut != nil {
@@ -1045,14 +1056,14 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int, cursor string,
 				f.UI(ctx).Info("No ghost posts found")
 				return nil
 			}
-			emitHint(next)
+			emitHint(nextCursor)
 			break
 		}
 
-		if next == "" || next == pageCursor || len(posts) == 0 {
+		if nextCursor == "" || nextCursor == pageCursor || len(posts) == 0 {
 			break
 		}
-		pageCursor = next
+		pageCursor = nextCursor
 		firstPage = false
 	}
 
@@ -1060,10 +1071,14 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int, cursor string,
 		out.Flush()
 	}
 	if outfmt.GetFormat(ctx) == outfmt.JSON {
-		return out.Output(map[string]any{
-			"posts":  allPosts,
-			"paging": map[string]any{"after": pageCursor},
-		})
+		items := allPosts
+		if len(items) == 0 {
+			items = []api.Post{}
+		}
+		if all {
+			return out.Output(itemsEnvelope(items, lastPaging, ""))
+		}
+		return out.Output(itemsEnvelope(items, lastPaging, nextCursor))
 	}
 	return nil
 }

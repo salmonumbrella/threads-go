@@ -201,9 +201,9 @@ func TestWebhooksList_JSONOutput(t *testing.T) {
 	}
 
 	// Verify JSON contains expected fields
-	data, ok := result["data"].([]any)
-	if !ok || len(data) == 0 {
-		t.Errorf("JSON output missing or empty data, got: %v", result)
+	items, ok := result["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Errorf("JSON output missing or empty items, got: %v", result)
 	}
 }
 

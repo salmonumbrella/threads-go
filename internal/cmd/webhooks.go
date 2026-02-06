@@ -179,7 +179,11 @@ func newWebhooksListCmd(f *Factory) *cobra.Command {
 				return out.Output(result.Data)
 			}
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(result)
+				items := result.Data
+				if len(items) == 0 {
+					items = []api.WebhookSubscription{}
+				}
+				return out.Output(itemsEnvelope(items, nil, ""))
 			}
 
 			if len(result.Data) == 0 {

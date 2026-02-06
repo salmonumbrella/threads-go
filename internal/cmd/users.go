@@ -276,6 +276,7 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				pageCursor := cursor
 				var allPosts []api.Post
 				var allRows [][]string
+				var lastPaging api.Paging
 
 				for {
 					opts.After = pageCursor
@@ -284,6 +285,7 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 						return WrapError("failed to get mentions", errPage)
 					}
 
+					lastPaging = result.Paging
 					next := pagingAfter(result.Paging)
 
 					if outfmt.IsJSONL(ctx) {
@@ -314,10 +316,11 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				}
 
 				if outfmt.GetFormat(ctx) == outfmt.JSON {
-					return out.Output(map[string]any{
-						"data":   allPosts,
-						"paging": map[string]any{"after": pageCursor},
-					})
+					items := allPosts
+					if len(items) == 0 {
+						items = []api.Post{}
+					}
+					return out.Output(itemsEnvelope(items, lastPaging, ""))
 				}
 				if outfmt.GetFormat(ctx) == outfmt.Text {
 					if len(allRows) == 0 {
@@ -348,7 +351,11 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				return out.Output(result.Data)
 			}
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(result)
+				items := result.Data
+				if len(items) == 0 {
+					items = []api.Post{}
+				}
+				return out.Output(itemsEnvelope(items, result.Paging, next))
 			}
 
 			if len(result.Data) == 0 {

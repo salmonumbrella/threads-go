@@ -80,7 +80,11 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 					return out.Output(replies.Data)
 				}
 				if outfmt.GetFormat(ctx) == outfmt.JSON {
-					return out.Output(replies)
+					items := replies.Data
+					if len(items) == 0 {
+						items = []api.Post{}
+					}
+					return out.Output(itemsEnvelope(items, replies.Paging, next))
 				}
 
 				if len(replies.Data) == 0 {
@@ -115,6 +119,8 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 			pageCursor := cursor
 			var allReplies []api.Post
 			var allRows [][]string
+			var lastPaging api.Paging
+			var nextCursor string
 
 			for {
 				opts.After = pageCursor
@@ -123,7 +129,8 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 					return WrapError("failed to get replies", errList)
 				}
 
-				next := pagingAfter(replies.Paging)
+				lastPaging = replies.Paging
+				nextCursor = pagingAfter(replies.Paging)
 
 				if outfmt.IsJSONL(ctx) {
 					if errOut := out.Output(replies.Data); errOut != nil {
@@ -146,17 +153,18 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 					}
 				}
 
-				if next == "" || next == pageCursor || len(replies.Data) == 0 {
+				if nextCursor == "" || nextCursor == pageCursor || len(replies.Data) == 0 {
 					break
 				}
-				pageCursor = next
+				pageCursor = nextCursor
 			}
 
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(map[string]any{
-					"data":   allReplies,
-					"paging": map[string]any{"after": pageCursor},
-				})
+				items := allReplies
+				if len(items) == 0 {
+					items = []api.Post{}
+				}
+				return out.Output(itemsEnvelope(items, lastPaging, ""))
 			}
 			if outfmt.GetFormat(ctx) == outfmt.Text {
 				if len(allRows) == 0 {
@@ -394,7 +402,11 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 					return out.Output(result.Data)
 				}
 				if outfmt.GetFormat(ctx) == outfmt.JSON {
-					return out.Output(result)
+					items := result.Data
+					if len(items) == 0 {
+						items = []api.Post{}
+					}
+					return out.Output(itemsEnvelope(items, result.Paging, next))
 				}
 
 				if len(result.Data) == 0 {
@@ -429,6 +441,8 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 			pageCursor := cursor
 			var allReplies []api.Post
 			var allRows [][]string
+			var lastPaging api.Paging
+			var nextCursor string
 
 			for {
 				opts.After = pageCursor
@@ -437,7 +451,8 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 					return WrapError("failed to get conversation", errConv)
 				}
 
-				next := pagingAfter(result.Paging)
+				lastPaging = result.Paging
+				nextCursor = pagingAfter(result.Paging)
 
 				if outfmt.IsJSONL(ctx) {
 					if errOut := out.Output(result.Data); errOut != nil {
@@ -460,17 +475,18 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 					}
 				}
 
-				if next == "" || next == pageCursor || len(result.Data) == 0 {
+				if nextCursor == "" || nextCursor == pageCursor || len(result.Data) == 0 {
 					break
 				}
-				pageCursor = next
+				pageCursor = nextCursor
 			}
 
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(map[string]any{
-					"data":   allReplies,
-					"paging": map[string]any{"after": pageCursor},
-				})
+				items := allReplies
+				if len(items) == 0 {
+					items = []api.Post{}
+				}
+				return out.Output(itemsEnvelope(items, lastPaging, ""))
 			}
 			if outfmt.GetFormat(ctx) == outfmt.Text {
 				if len(allRows) == 0 {

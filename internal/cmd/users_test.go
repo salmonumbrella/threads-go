@@ -110,7 +110,7 @@ func TestUsersMentionsCmd_Flags(t *testing.T) {
 	f := newTestFactory(t)
 	cmd := newUsersMentionsCmd(f)
 
-	flags := []string{"limit", "cursor"}
+	flags := []string{"limit", "cursor", "all", "no-hints"}
 	for _, flag := range flags {
 		if cmd.Flag(flag) == nil {
 			t.Errorf("missing flag: %s", flag)

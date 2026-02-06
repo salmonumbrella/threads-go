@@ -270,7 +270,7 @@ threads posts create --text "And the conclusion 3/3" --reply-to $POST_ID
 
 ```bash
 # Check mentions in JSON for scripting
-threads users mentions -o json | jq '.data[] | {from: .username, text: .text}'
+threads users mentions -o json | jq '.items[] | {from: .username, text: .text}'
 
 # Reply to a mention
 threads replies create MENTION_POST_ID --text "Thanks for the mention!"
@@ -300,10 +300,10 @@ threads posts delete POST_ID --yes
 threads posts list --limit 10 --output json
 
 # Pipeline: get all post IDs from last 10 posts
-threads posts list --limit 10 -o json | jq -r '.posts[].id'
+threads posts list --limit 10 -o json | jq -r '.items[].id'
 
 # Export posts to CSV
-threads posts list -o json | jq -r '.posts[] | [.id, .text, .timestamp] | @csv'
+threads posts list -o json | jq -r '.items[] | [.id, .text, .timestamp] | @csv'
 ```
 
 ### Switch Between Accounts
@@ -326,13 +326,13 @@ Filter JSON output with JQ expressions:
 
 ```bash
 # Get only the first post ID
-threads posts list --output json --query '.posts[0].id'
+threads posts list --output json --query '.items[0].id'
 
 # Extract all post texts
-threads posts list --output json --query '[.posts[].text]'
+threads posts list --output json --query '[.items[].text]'
 
 # Filter posts with images
-threads posts list --output json --query '.posts[] | select(.media_type=="IMAGE")'
+threads posts list --output json --query '.items[] | select(.media_type=="IMAGE")'
 ```
 
 ### Scheduled Posting (with cron)
