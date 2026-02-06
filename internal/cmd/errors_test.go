@@ -1,12 +1,17 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/salmonumbrella/threads-cli/internal/api"
+	"github.com/salmonumbrella/threads-cli/internal/outfmt"
 )
 
 func TestUserFriendlyError_Error(t *testing.T) {
@@ -551,5 +556,191 @@ func TestFormatError_GenericErrors_AllCases(t *testing.T) {
 				t.Errorf("Error() = %v, want to contain %v", errStr, tt.wantSubstr)
 			}
 		})
+	}
+}
+
+func TestFormatError_PreservesUserFriendlyError(t *testing.T) {
+	original := &UserFriendlyError{
+		Message:    "already formatted message",
+		Suggestion: "already formatted suggestion",
+		Cause:      errors.New("underlying"),
+	}
+	formatted := FormatError(original)
+	ufErr, ok := formatted.(*UserFriendlyError)
+	if !ok {
+		t.Fatalf("FormatError() did not return *UserFriendlyError, got %T", formatted)
+	}
+	if ufErr.Message != original.Message {
+		t.Errorf("Message = %q, want %q", ufErr.Message, original.Message)
+	}
+	if ufErr.Suggestion != original.Suggestion {
+		t.Errorf("Suggestion = %q, want %q", ufErr.Suggestion, original.Suggestion)
+	}
+	if ufErr != original {
+		t.Error("FormatError should return the same *UserFriendlyError pointer")
+	}
+}
+
+func TestFormatError_PlainTokenExpired(t *testing.T) {
+	err := errors.New("token expired")
+	formatted := FormatError(err)
+	ufErr, ok := formatted.(*UserFriendlyError)
+	if !ok {
+		t.Fatalf("FormatError(\"token expired\") did not return *UserFriendlyError, got %T", formatted)
+	}
+	if !strings.Contains(ufErr.Message, "expired") {
+		t.Errorf("Message = %q, want to contain 'expired'", ufErr.Message)
+	}
+	if !strings.Contains(ufErr.Suggestion, "threads auth refresh") {
+		t.Errorf("Suggestion = %q, want to contain 'threads auth refresh'", ufErr.Suggestion)
+	}
+}
+
+func TestWriteErrorTo_TextMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantSubstr string
+	}{
+		{
+			name:       "auth error text",
+			err:        api.NewAuthenticationError(401, "Token has expired", ""),
+			wantSubstr: "expired",
+		},
+		{
+			name:       "rate limit text",
+			err:        api.NewRateLimitError(429, "Too many requests", "", 5*time.Minute),
+			wantSubstr: "Rate limit",
+		},
+		{
+			name:       "nil error",
+			err:        nil,
+			wantSubstr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx := outfmt.WithFormat(context.Background(), "text")
+			WriteErrorTo(ctx, &buf, tt.err)
+			got := buf.String()
+			if tt.err == nil {
+				if got != "" {
+					t.Errorf("WriteErrorTo(nil) wrote %q, want empty", got)
+				}
+				return
+			}
+			if !strings.Contains(strings.ToLower(got), strings.ToLower(tt.wantSubstr)) {
+				t.Errorf("WriteErrorTo() = %q, want to contain %q", got, tt.wantSubstr)
+			}
+		})
+	}
+}
+
+func TestWriteErrorTo_JSONMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantKind string
+	}{
+		{
+			name:     "auth error",
+			err:      api.NewAuthenticationError(401, "Token has expired", ""),
+			wantKind: "auth",
+		},
+		{
+			name:     "rate limit error",
+			err:      api.NewRateLimitError(429, "Too many requests", "", 5*time.Minute),
+			wantKind: "rate_limit",
+		},
+		{
+			name:     "validation error",
+			err:      api.NewValidationError(400, "Invalid value", "", "text"),
+			wantKind: "validation",
+		},
+		{
+			name:     "network error",
+			err:      api.NewNetworkError(0, "Request timeout", "", true),
+			wantKind: "network",
+		},
+		{
+			name:     "api error",
+			err:      api.NewAPIError(500, "Internal server error", "", "req-123"),
+			wantKind: "api",
+		},
+		{
+			name:     "unknown/plain error",
+			err:      errors.New("something unexpected"),
+			wantKind: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			ctx := outfmt.WithFormat(context.Background(), "json")
+			WriteErrorTo(ctx, &buf, tt.err)
+
+			var envelope struct {
+				Error struct {
+					Message string `json:"message"`
+					Kind    string `json:"kind"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &envelope); err != nil {
+				t.Fatalf("WriteErrorTo() produced invalid JSON: %v\nOutput: %s", err, buf.String())
+			}
+			if envelope.Error.Kind != tt.wantKind {
+				t.Errorf("error.kind = %q, want %q", envelope.Error.Kind, tt.wantKind)
+			}
+			if envelope.Error.Message == "" {
+				t.Error("error.message is empty")
+			}
+		})
+	}
+}
+
+func TestWriteErrorTo_JSONMode_Nil(t *testing.T) {
+	var buf bytes.Buffer
+	ctx := outfmt.WithFormat(context.Background(), "json")
+	WriteErrorTo(ctx, &buf, nil)
+	if buf.Len() != 0 {
+		t.Errorf("WriteErrorTo(nil) wrote %q in JSON mode, want empty", buf.String())
+	}
+}
+
+func TestWrapError_UserFriendlyError(t *testing.T) {
+	original := &UserFriendlyError{
+		Message:    "original message",
+		Suggestion: "original suggestion",
+		Cause:      errors.New("root cause"),
+	}
+	wrapped := WrapError("context prefix", original)
+	ufErr, ok := wrapped.(*UserFriendlyError)
+	if !ok {
+		t.Fatalf("WrapError() did not return *UserFriendlyError, got %T", wrapped)
+	}
+	if !strings.HasPrefix(ufErr.Message, "context prefix") {
+		t.Errorf("Message = %q, want prefix 'context prefix'", ufErr.Message)
+	}
+	if !strings.Contains(ufErr.Message, "original message") {
+		t.Errorf("Message = %q, want to contain 'original message'", ufErr.Message)
+	}
+	if ufErr.Suggestion != "original suggestion" {
+		t.Errorf("Suggestion = %q, want %q", ufErr.Suggestion, "original suggestion")
+	}
+}
+
+func TestWrapError_PlainErrorFmtStyle(t *testing.T) {
+	plain := errors.New("something went wrong")
+	wrapped := WrapError("operation failed", plain)
+	if wrapped == nil {
+		t.Fatal("WrapError() returned nil")
+	}
+	got := wrapped.Error()
+	want := fmt.Sprintf("operation failed: %s", plain.Error())
+	if got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
