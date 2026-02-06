@@ -74,7 +74,8 @@ func runInsightsPost(cmd *cobra.Command, f *Factory, opts *insightsPostOptions, 
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, insights, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(insights)
 	}
 
 	p := f.UI(ctx)
@@ -197,7 +198,8 @@ func runInsightsAccount(cmd *cobra.Command, f *Factory, opts *insightsAccountOpt
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, insights, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(insights)
 	}
 
 	p := f.UI(ctx)

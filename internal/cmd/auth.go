@@ -137,7 +137,8 @@ func runAuthLogin(cmd *cobra.Command, f *Factory, opts *authLoginOptions) error 
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"account":           opts.Name,
 			"user_id":           result.UserID,
 			"username":          result.Username,
@@ -145,7 +146,7 @@ func runAuthLogin(cmd *cobra.Command, f *Factory, opts *authLoginOptions) error 
 			"is_expired":        time.Now().After(result.ExpiresAt),
 			"days_until_expiry": time.Until(result.ExpiresAt).Hours() / 24,
 			"scopes":            opts.Scopes,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	p.Success("Authentication successful!")
@@ -267,14 +268,15 @@ func runAuthToken(cmd *cobra.Command, f *Factory, opts *authTokenOptions, args [
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"account":           opts.Name,
 			"user_id":           debugInfo.Data.UserID,
 			"username":          user.Username,
 			"expires_at":        expiresAt,
 			"is_expired":        time.Now().After(expiresAt),
 			"days_until_expiry": time.Until(expiresAt).Hours() / 24,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	p := f.UI(ctx)
@@ -360,13 +362,14 @@ func runAuthRefresh(cmd *cobra.Command, f *Factory) error {
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"account":           account,
 			"expires_at":        creds.ExpiresAt,
 			"is_expired":        creds.IsExpired(),
 			"days_until_expiry": creds.DaysUntilExpiry(),
 			"refreshed":         true,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	p := f.UI(ctx)
@@ -405,9 +408,10 @@ func runAuthStatus(cmd *cobra.Command, f *Factory) error {
 			ctx := cmd.Context()
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"configured": false,
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			p := f.UI(cmd.Context())
@@ -427,14 +431,15 @@ func runAuthStatus(cmd *cobra.Command, f *Factory) error {
 	io := iocontext.GetIO(ctx)
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"account":           account,
 			"user_id":           creds.UserID,
 			"username":          creds.Username,
 			"expires_at":        creds.ExpiresAt,
 			"is_expired":        creds.IsExpired(),
 			"days_until_expiry": creds.DaysUntilExpiry(),
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	p := f.UI(ctx)
@@ -489,7 +494,8 @@ func runAuthList(cmd *cobra.Command, f *Factory) error {
 	if len(accounts) == 0 {
 		if outfmt.IsJSON(ctx) {
 			// Keep stdout machine-readable.
-			return outfmt.WriteJSONTo(io.Out, []any{}, outfmt.GetQuery(ctx))
+			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			return out.Output([]any{})
 		}
 
 		p := f.UI(ctx)
@@ -512,7 +518,8 @@ func runAuthList(cmd *cobra.Command, f *Factory) error {
 				})
 			}
 		}
-		return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(result)
 	}
 
 	fmtr := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
@@ -595,11 +602,12 @@ func runAuthRemove(cmd *cobra.Command, f *Factory, name string) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"ok":      true,
 			"account": name,
 			"removed": true,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	p := f.UI(ctx)

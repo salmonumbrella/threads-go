@@ -125,7 +125,10 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 				return nil
 			}
 
-			if outfmt.IsJSON(ctx) {
+			if outfmt.IsJSONL(ctx) {
+				return out.Output(result.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
 				return out.Output(result)
 			}
 

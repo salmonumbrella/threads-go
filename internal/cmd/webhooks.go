@@ -124,7 +124,8 @@ Supported events:
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, webhookSubscriptionToMap(subscription), outfmt.GetQuery(ctx))
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(webhookSubscriptionToMap(subscription))
 			}
 
 			f.UI(ctx).Success("Webhook subscription created successfully!")
@@ -173,11 +174,14 @@ func newWebhooksListCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
+			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			if outfmt.IsJSONL(ctx) {
+				return out.Output(result.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
+				return out.Output(result)
 			}
 
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 			if len(result.Data) == 0 {
 				out.Empty("No webhook subscriptions found")
 				return nil
@@ -254,10 +258,11 @@ After deletion, your callback URL will no longer receive events for this subscri
 			}
 
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"success": true,
 					"deleted": subscriptionID,
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			f.UI(ctx).Success("Webhook subscription deleted successfully")

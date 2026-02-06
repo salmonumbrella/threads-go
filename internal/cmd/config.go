@@ -52,7 +52,8 @@ func newConfigListCmd() *cobra.Command {
 
 			io := iocontext.GetIO(cmd.Context())
 			if outfmt.IsJSON(cmd.Context()) {
-				return outfmt.WriteJSONTo(io.Out, configToMap(cfg), outfmt.GetQuery(cmd.Context()))
+				out := outfmt.FromContext(cmd.Context(), outfmt.WithWriter(io.Out))
+				return out.Output(configToMap(cfg))
 			}
 
 			fmt.Fprintf(io.Out, "Account: %s\n", fallback(cfg.Account, "(none)")) //nolint:errcheck // Best-effort output
@@ -87,7 +88,8 @@ func newConfigGetCmd() *cobra.Command {
 
 			io := iocontext.GetIO(cmd.Context())
 			if outfmt.IsJSON(cmd.Context()) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{key: value}, outfmt.GetQuery(cmd.Context()))
+				out := outfmt.FromContext(cmd.Context(), outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{key: value})
 			}
 
 			fmt.Fprintln(io.Out, value) //nolint:errcheck // Best-effort output
@@ -122,10 +124,11 @@ func newConfigSetCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(cmd.Context())
 			if outfmt.IsJSON(cmd.Context()) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(cmd.Context(), outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"success": true,
 					"config":  configToMap(cfg),
-				}, outfmt.GetQuery(cmd.Context()))
+				})
 			}
 
 			fmt.Fprintf(io.Out, "Updated %s\n", key) //nolint:errcheck // Best-effort output
@@ -159,10 +162,11 @@ func newConfigUnsetCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(cmd.Context())
 			if outfmt.IsJSON(cmd.Context()) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(cmd.Context(), outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"success": true,
 					"config":  configToMap(cfg),
-				}, outfmt.GetQuery(cmd.Context()))
+				})
 			}
 
 			fmt.Fprintf(io.Out, "Unset %s\n", key) //nolint:errcheck // Best-effort output

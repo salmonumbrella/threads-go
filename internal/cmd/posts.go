@@ -276,7 +276,8 @@ func runPostsCreate(cmd *cobra.Command, f *Factory, opts *postsCreateOptions) er
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(post)
 	}
 
 	p := f.UI(ctx)
@@ -333,7 +334,8 @@ func runPostsGet(cmd *cobra.Command, f *Factory, postID string) error {
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(post)
 	}
 
 	fmt.Fprintf(io.Out, "ID:        %s\n", post.ID)                                      //nolint:errcheck // Best-effort output
@@ -414,11 +416,15 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
 	}
 
 	io := iocontext.GetIO(ctx)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+	out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+	if outfmt.IsJSONL(ctx) {
+		return out.Output(posts)
+	}
+	if outfmt.GetFormat(ctx) == outfmt.JSON {
+		return out.Output(map[string]any{
 			"posts":  posts,
 			"paging": postsResp.Paging,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	if len(posts) == 0 {
@@ -515,12 +521,13 @@ func runPostsDelete(cmd *cobra.Command, f *Factory, postID string) error {
 	}
 
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(map[string]any{
 			"ok":      true,
 			"post_id": postID,
 			"deleted": true,
 			"action":  "delete_post",
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	f.UI(ctx).Success("Post deleted successfully")
@@ -624,7 +631,8 @@ func runPostsCarousel(cmd *cobra.Command, f *Factory, opts *postsCarouselOptions
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(post)
 	}
 
 	f.UI(ctx).Success("Carousel post created successfully!")
@@ -710,7 +718,8 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(post)
 			}
 
 			f.UI(ctx).Success("Quote post created successfully!")
@@ -762,7 +771,8 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(post)
 			}
 
 			f.UI(ctx).Success("Repost created successfully!")
@@ -823,12 +833,13 @@ Requires confirmation unless --yes flag is provided.`,
 			}
 
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"ok":        true,
 					"repost_id": repostID,
 					"deleted":   true,
 					"action":    "unrepost",
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			f.UI(ctx).Success("Repost removed successfully")
@@ -897,11 +908,15 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int) error {
 	}
 
 	io := iocontext.GetIO(ctx)
-	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, map[string]any{
+	out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+	if outfmt.IsJSONL(ctx) {
+		return out.Output(posts)
+	}
+	if outfmt.GetFormat(ctx) == outfmt.JSON {
+		return out.Output(map[string]any{
 			"posts":  posts,
 			"paging": postsResp.Paging,
-		}, outfmt.GetQuery(ctx))
+		})
 	}
 
 	if len(posts) == 0 {

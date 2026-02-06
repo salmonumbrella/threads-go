@@ -160,6 +160,9 @@ func TestFormat(t *testing.T) {
 	if JSON != 1 {
 		t.Errorf("JSON format should be 1, got %d", JSON)
 	}
+	if JSONL != 2 {
+		t.Errorf("JSONL format should be 2, got %d", JSONL)
+	}
 }
 
 func TestContextFormat(t *testing.T) {
@@ -206,6 +209,7 @@ func TestWithFormat(t *testing.T) {
 		expected Format
 	}{
 		{"json", JSON},
+		{"jsonl", JSONL},
 		{"text", Text},
 		{"", Text},
 		{"invalid", Text},
@@ -232,9 +236,88 @@ func TestIsJSON(t *testing.T) {
 		t.Error("context with json format should return true for IsJSON")
 	}
 
+	ctx = WithFormat(ctx, "jsonl")
+	if !IsJSON(ctx) {
+		t.Error("context with jsonl format should return true for IsJSON")
+	}
+
 	ctx = WithFormat(ctx, "text")
 	if IsJSON(ctx) {
 		t.Error("context with text format should return false for IsJSON")
+	}
+}
+
+func TestIsJSONL(t *testing.T) {
+	ctx := context.Background()
+	if IsJSONL(ctx) {
+		t.Error("default context should not be JSONL")
+	}
+
+	ctx = WithFormat(ctx, "json")
+	if IsJSONL(ctx) {
+		t.Error("json context should not be JSONL")
+	}
+
+	ctx = WithFormat(ctx, "jsonl")
+	if !IsJSONL(ctx) {
+		t.Error("jsonl context should be JSONL")
+	}
+}
+
+func TestFormatterOutput_JSONL_Slice(t *testing.T) {
+	var buf bytes.Buffer
+	ctx := WithFormat(context.Background(), "jsonl")
+	f := FromContext(ctx, WithWriter(&buf))
+
+	err := f.Output([]map[string]any{
+		{"id": "1"},
+		{"id": "2"},
+	})
+	if err != nil {
+		t.Fatalf("Output jsonl: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %q", len(lines), buf.String())
+	}
+	if !strings.Contains(lines[0], `"id"`) || !strings.Contains(lines[0], `"1"`) {
+		t.Fatalf("unexpected first line: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], `"id"`) || !strings.Contains(lines[1], `"2"`) {
+		t.Fatalf("unexpected second line: %q", lines[1])
+	}
+}
+
+func TestFormatterTable_JSONL(t *testing.T) {
+	var buf bytes.Buffer
+	ctx := WithFormat(context.Background(), "jsonl")
+	f := FromContext(ctx, WithWriter(&buf))
+
+	err := f.Table([]string{"ID", "TEXT"}, [][]string{{"1", "Hello"}, {"2", "World"}}, nil)
+	if err != nil {
+		t.Fatalf("Table jsonl: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %q", len(lines), buf.String())
+	}
+	if !strings.Contains(lines[0], `"ID"`) || !strings.Contains(lines[0], `"1"`) {
+		t.Fatalf("unexpected first line: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], `"ID"`) || !strings.Contains(lines[1], `"2"`) {
+		t.Fatalf("unexpected second line: %q", lines[1])
+	}
+}
+
+func TestFormatterEmpty_JSONL(t *testing.T) {
+	var buf bytes.Buffer
+	ctx := WithFormat(context.Background(), "jsonl")
+	f := FromContext(ctx, WithWriter(&buf))
+	f.Empty("No results")
+	if buf.String() != "" {
+		t.Fatalf("expected no output for jsonl Empty, got %q", buf.String())
 	}
 }
 

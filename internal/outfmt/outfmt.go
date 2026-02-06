@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"text/tabwriter"
 
 	"github.com/itchyny/gojq"
@@ -18,6 +19,7 @@ type Format int
 const (
 	Text Format = iota
 	JSON
+	JSONL
 )
 
 // ParseFormat parses an output format string.
@@ -25,6 +27,8 @@ func ParseFormat(value string) Format {
 	switch value {
 	case "json":
 		return JSON
+	case "jsonl":
+		return JSONL
 	default:
 		return Text
 	}
@@ -156,6 +160,8 @@ func WithFormat(ctx context.Context, format string) context.Context {
 	switch format {
 	case "json":
 		return context.WithValue(ctx, formatKey, JSON)
+	case "jsonl":
+		return context.WithValue(ctx, formatKey, JSONL)
 	default:
 		return context.WithValue(ctx, formatKey, Text)
 	}
@@ -221,9 +227,19 @@ func GetFormat(ctx context.Context) Format {
 	return Text
 }
 
-// IsJSON checks if context has JSON output format
+// IsJSON checks if context has JSON-ish output format (json or jsonl).
 func IsJSON(ctx context.Context) bool {
-	return GetFormat(ctx) == JSON
+	switch GetFormat(ctx) {
+	case JSON, JSONL:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsJSONL checks if context has JSONL output format.
+func IsJSONL(ctx context.Context) bool {
+	return GetFormat(ctx) == JSONL
 }
 
 // Output writes data in the appropriate format (legacy, use Formatter.Output instead)
@@ -232,6 +248,9 @@ func Output(ctx context.Context, data any, textFormatter func()) error {
 	switch format {
 	case JSON:
 		return WriteJSONTo(os.Stdout, data, "")
+	case JSONL:
+		f := FromContext(ctx, WithWriter(os.Stdout))
+		return f.Output(data)
 	default:
 		textFormatter()
 		return nil
@@ -393,8 +412,11 @@ func (f *Formatter) colorEnabled() bool {
 
 // Table outputs data in tabular format with optional column colorization
 func (f *Formatter) Table(headers []string, rows [][]string, colTypes []ColumnType) error {
-	// In JSON mode, output as array of objects
-	if IsJSON(f.ctx) {
+	// In JSON mode, output as structured objects
+	switch GetFormat(f.ctx) {
+	case JSONL:
+		return f.tableJSONL(headers, rows)
+	case JSON:
 		return f.tableJSON(headers, rows)
 	}
 
@@ -425,6 +447,43 @@ func (f *Formatter) tableJSON(headers []string, rows [][]string) error {
 	return enc.Encode(result)
 }
 
+// tableJSONL outputs table data as JSONL: one object per row.
+func (f *Formatter) tableJSONL(headers []string, rows [][]string) error {
+	query := GetQuery(f.ctx)
+	if query != "" {
+		// Apply jq to the whole table (as an array), then emit each result as a JSON line.
+		return f.writeFilteredJSONLinesTo(rowsToObjects(headers, rows), query)
+	}
+
+	enc := json.NewEncoder(f.out)
+	for _, row := range rows {
+		obj := make(map[string]string)
+		for i, header := range headers {
+			if i < len(row) {
+				obj[header] = row[i]
+			}
+		}
+		if err := enc.Encode(obj); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rowsToObjects(headers []string, rows [][]string) []map[string]string {
+	var result []map[string]string
+	for _, row := range rows {
+		obj := make(map[string]string)
+		for i, header := range headers {
+			if i < len(row) {
+				obj[header] = row[i]
+			}
+		}
+		result = append(result, obj)
+	}
+	return result
+}
+
 // writeFilteredJSONTo applies JQ filter and writes to output
 func (f *Formatter) writeFilteredJSONTo(data any, query string) error {
 	q, err := gojq.Parse(query)
@@ -450,6 +509,45 @@ func (f *Formatter) writeFilteredJSONTo(data any, query string) error {
 	iter := code.Run(input)
 	enc := json.NewEncoder(f.out)
 	enc.SetIndent("", "  ")
+
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := v.(error); ok {
+			return err
+		}
+		if err := enc.Encode(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeFilteredJSONLinesTo applies JQ filter and writes each result as a JSON line (JSONL).
+func (f *Formatter) writeFilteredJSONLinesTo(data any, query string) error {
+	q, err := gojq.Parse(query)
+	if err != nil {
+		return fmt.Errorf("invalid jq query: %w", err)
+	}
+
+	code, err := gojq.Compile(q)
+	if err != nil {
+		return fmt.Errorf("failed to compile jq query: %w", err)
+	}
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	var input any
+	if err := json.Unmarshal(jsonBytes, &input); err != nil {
+		return err
+	}
+
+	iter := code.Run(input)
+	enc := json.NewEncoder(f.out)
 
 	for {
 		v, ok := iter.Next()
@@ -499,7 +597,8 @@ func (f *Formatter) tableText(headers []string, rows [][]string, colTypes []Colu
 
 // Output writes data in the appropriate format (JSON or pretty-print)
 func (f *Formatter) Output(data any) error {
-	if IsJSON(f.ctx) {
+	switch GetFormat(f.ctx) {
+	case JSON:
 		query := GetQuery(f.ctx)
 		if query != "" {
 			return f.writeFilteredJSONTo(data, query)
@@ -507,6 +606,8 @@ func (f *Formatter) Output(data any) error {
 		enc := json.NewEncoder(f.out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(data)
+	case JSONL:
+		return f.outputJSONL(data)
 	}
 
 	// For text output, just print the value
@@ -514,13 +615,46 @@ func (f *Formatter) Output(data any) error {
 	return nil
 }
 
+func (f *Formatter) outputJSONL(data any) error {
+	query := GetQuery(f.ctx)
+	if query != "" {
+		return f.writeFilteredJSONLinesTo(data, query)
+	}
+
+	// If data is a slice/array, emit one JSON object per line.
+	v := reflect.ValueOf(data)
+	if v.IsValid() {
+		switch v.Kind() {
+		case reflect.Slice, reflect.Array:
+			if v.Len() == 0 {
+				return nil
+			}
+			enc := json.NewEncoder(f.out)
+			for i := 0; i < v.Len(); i++ {
+				if err := enc.Encode(v.Index(i).Interface()); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+
+	// Otherwise emit a single JSON line.
+	enc := json.NewEncoder(f.out)
+	return enc.Encode(data)
+}
+
 // Empty prints an empty result message
 func (f *Formatter) Empty(msg string) {
-	if IsJSON(f.ctx) {
+	switch GetFormat(f.ctx) {
+	case JSON:
 		enc := json.NewEncoder(f.out)
 		enc.SetIndent("", "  ")
 		//nolint:errcheck,gosec // Best-effort output for empty JSON array
 		enc.Encode([]any{})
+		return
+	case JSONL:
+		// Empty JSONL is no output (0 lines).
 		return
 	}
 	fmt.Fprintln(f.out, msg) //nolint:errcheck // Best-effort output

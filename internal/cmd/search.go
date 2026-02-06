@@ -163,16 +163,17 @@ Results can be sorted by popularity (top) or recency (recent).`,
 
 				// JSON mode: emit stable wrapper.
 				if outfmt.IsJSON(ctx) {
+					out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 					switch emit {
 					case "id":
-						return outfmt.WriteJSONTo(io.Out, map[string]any{"id": item.ID}, outfmt.GetQuery(ctx))
+						return out.Output(map[string]any{"id": item.ID})
 					case "url":
-						return outfmt.WriteJSONTo(io.Out, map[string]any{"url": item.Permalink}, outfmt.GetQuery(ctx))
+						return out.Output(map[string]any{"url": item.Permalink})
 					default:
-						return outfmt.WriteJSONTo(io.Out, map[string]any{
+						return out.Output(map[string]any{
 							"id":   item.ID,
 							"item": item,
-						}, outfmt.GetQuery(ctx))
+						})
 					}
 				}
 
@@ -184,8 +185,13 @@ Results can be sorted by popularity (top) or recency (recent).`,
 				return nil
 			}
 
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
+			if outfmt.IsJSONL(ctx) {
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(result.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(result)
 			}
 
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))

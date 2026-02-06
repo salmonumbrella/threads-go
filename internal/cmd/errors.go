@@ -68,10 +68,10 @@ func WriteErrorTo(ctx context.Context, w io.Writer, err error) {
 		return
 	}
 
-	_ = writeErrorJSONTo(w, formatted) // Best-effort output in error paths.
+	_ = writeErrorJSONTo(ctx, w, formatted) // Best-effort output in error paths.
 }
 
-func writeErrorJSONTo(w io.Writer, formatted error) error {
+func writeErrorJSONTo(ctx context.Context, w io.Writer, formatted error) error {
 	root := formatted
 	var uf *UserFriendlyError
 	if errors.As(formatted, &uf) {
@@ -125,7 +125,9 @@ func writeErrorJSONTo(w io.Writer, formatted error) error {
 	}
 
 	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
+	if !outfmt.IsJSONL(ctx) {
+		enc.SetIndent("", "  ")
+	}
 	return enc.Encode(errorEnvelope{Error: payload})
 }
 

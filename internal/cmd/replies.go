@@ -62,8 +62,12 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, replies, outfmt.GetQuery(ctx))
+			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			if outfmt.IsJSONL(ctx) {
+				return out.Output(replies.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
+				return out.Output(replies)
 			}
 
 			if len(replies.Data) == 0 {
@@ -86,7 +90,6 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 				}
 			}
 
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 			return out.Table(headers, rows, []outfmt.ColumnType{
 				outfmt.ColumnID,
 				outfmt.ColumnPlain,
@@ -154,7 +157,8 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, reply, outfmt.GetQuery(ctx))
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(reply)
 			}
 
 			f.UI(ctx).Success("Reply created successfully!")
@@ -195,12 +199,13 @@ Hidden replies are not visible to other users but can be unhidden later.
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"ok":       true,
 					"reply_id": replyID,
 					"hidden":   true,
 					"action":   "hide_reply",
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			f.UI(ctx).Success("Reply %s hidden", replyID)
@@ -235,12 +240,13 @@ func newRepliesUnhideCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"ok":       true,
 					"reply_id": replyID,
 					"hidden":   false,
 					"action":   "unhide_reply",
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			f.UI(ctx).Success("Reply %s unhidden", replyID)
@@ -284,8 +290,12 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
+			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			if outfmt.IsJSONL(ctx) {
+				return out.Output(result.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
+				return out.Output(result)
 			}
 
 			if len(result.Data) == 0 {
@@ -308,7 +318,6 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 				}
 			}
 
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 			return out.Table(headers, rows, []outfmt.ColumnType{
 				outfmt.ColumnID,
 				outfmt.ColumnPlain,

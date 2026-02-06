@@ -192,6 +192,62 @@ func TestNewListCommand_JSONOutput(t *testing.T) {
 	}
 }
 
+func TestNewListCommand_JSONLOutput(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cfg := ListConfig[mockPost]{
+		Use:     "list",
+		Short:   "List items",
+		Headers: []string{"ID", "TEXT", "STATUS"},
+		RowFunc: func(p mockPost) []string {
+			return []string{p.ID, p.Text, p.Status}
+		},
+		Fetch: func(ctx context.Context, client *api.Client, cursor string, limit int) (ListResult[mockPost], error) {
+			return ListResult[mockPost]{
+				Items: []mockPost{
+					{ID: "1", Text: "Hello", Status: "PUBLISHED"},
+					{ID: "2", Text: "World", Status: "ACTIVE"},
+				},
+				HasMore: true,
+				Cursor:  "abc123",
+			}, nil
+		},
+		EmptyMessage: "No posts found",
+	}
+
+	getClient := func(ctx context.Context) (*api.Client, error) {
+		return nil, nil
+	}
+
+	cmd := NewListCommand(cfg, getClient)
+
+	io := &iocontext.IO{Out: &stdout, ErrOut: &stderr}
+	ctx := iocontext.WithIO(context.Background(), io)
+	ctx = outfmt.WithFormat(ctx, "jsonl")
+	cmd.SetContext(ctx)
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := stdout.String()
+	if strings.Contains(out, `"items"`) {
+		t.Fatalf("did not expect wrapper JSON in jsonl output, got: %q", out)
+	}
+	if !strings.Contains(out, `"ID":"1"`) || !strings.Contains(out, `"ID":"2"`) {
+		t.Fatalf("expected jsonl lines with IDs, got: %q", out)
+	}
+
+	errOut := stderr.String()
+	if !strings.Contains(errOut, "More results available") || !strings.Contains(errOut, "--cursor abc123") {
+		t.Fatalf("expected cursor hint on stderr, got: %q", errOut)
+	}
+}
+
 func TestNewListCommand_EmptyResults_Text(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

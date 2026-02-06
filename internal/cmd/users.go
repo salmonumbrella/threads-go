@@ -112,7 +112,8 @@ func runUsersMe(cmd *cobra.Command, f *Factory) error {
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, userToMap(user), outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(userToMap(user))
 	}
 
 	printUserText(cmd.Context(), f, user)
@@ -134,7 +135,8 @@ func runUsersGet(cmd *cobra.Command, f *Factory, userID string) error {
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, userToMap(user), outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(userToMap(user))
 	}
 
 	printUserText(ctx, f, user)
@@ -156,7 +158,8 @@ func runUsersLookup(cmd *cobra.Command, f *Factory, username string) error {
 
 	io := iocontext.GetIO(ctx)
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSONTo(io.Out, publicUserToMap(publicUser), outfmt.GetQuery(ctx))
+		out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+		return out.Output(publicUserToMap(publicUser))
 	}
 
 	printPublicUserText(ctx, f, publicUser)
@@ -272,11 +275,13 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 
 			// JSON output
 			io := iocontext.GetIO(ctx)
-			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
-			}
-
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			if outfmt.IsJSONL(ctx) {
+				return out.Output(result.Data)
+			}
+			if outfmt.GetFormat(ctx) == outfmt.JSON {
+				return out.Output(result)
+			}
 
 			if len(result.Data) == 0 {
 				out.Empty("No mentions found")

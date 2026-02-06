@@ -59,3 +59,14 @@ Goal: make `threads` maximally usable by an automated agent. That means fewer ro
 - Add non-interactive search selection:
   - `threads search <query> --best --emit id|json|url`
 - Let `threads users get @username` (and profile URLs) delegate to lookup.
+
+## Phase 7: Agent-Friendly Chaining + Streaming (Completed)
+
+1. Locations best-match:
+   - `threads locations search <query> --best --emit id|json`
+2. Large text inputs without breaking @mentions:
+   - Add `--text-file <path|->` to `posts create`, `posts quote`, and `replies create`.
+   - Keep `--text "@alice"` literal (no `@file` overloading on `--text`).
+3. JSONL for list-style commands:
+   - Add `--output jsonl` (one JSON object per line; empty list = 0 lines).
+   - List-style commands emit items in JSONL mode (not wrapper objects).

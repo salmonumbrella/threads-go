@@ -41,14 +41,15 @@ func newRateLimitStatusCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, map[string]interface{}{
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(map[string]interface{}{
 					"is_limited": isLimited,
 					"remaining":  status.Remaining,
 					"limit":      status.Limit,
 					"reset_at":   status.ResetTime,
 					"reset_in":   status.ResetIn.String(),
 					"near_limit": nearLimit,
-				}, outfmt.GetQuery(ctx))
+				})
 			}
 
 			// Text output
@@ -85,7 +86,8 @@ func newRateLimitPublishingCmd(f *Factory) *cobra.Command {
 
 			io := iocontext.GetIO(ctx)
 			if outfmt.IsJSON(ctx) {
-				return outfmt.WriteJSONTo(io.Out, limits, outfmt.GetQuery(ctx))
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(limits)
 			}
 
 			// Text output

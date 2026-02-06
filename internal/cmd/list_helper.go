@@ -69,6 +69,18 @@ func NewListCommand[T any](cfg ListConfig[T], getClient func(context.Context) (*
 				return err
 			}
 
+			// Handle JSONL output mode (one item per line).
+			if outfmt.IsJSONL(ctx) {
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				if err := out.Output(result.Items); err != nil {
+					return err
+				}
+				if result.HasMore && result.Cursor != "" {
+					fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", result.Cursor) //nolint:errcheck // Best-effort output to stderr
+				}
+				return nil
+			}
+
 			// Handle JSON output mode
 			if outfmt.IsJSON(ctx) {
 				return outputListJSON(io, result, cursor, outfmt.GetQuery(ctx))

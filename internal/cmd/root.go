@@ -110,10 +110,10 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 			if output == "" {
 				output = "text"
 			}
-			if output != "text" && output != "json" {
+			if output != "text" && output != "json" && output != "jsonl" {
 				return &UserFriendlyError{
 					Message:    fmt.Sprintf("Invalid output value: %s", output),
-					Suggestion: "Valid values are: text, json",
+					Suggestion: "Valid values are: text, json, jsonl",
 				}
 			}
 
@@ -162,7 +162,7 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 	}
 
 	cmd.PersistentFlags().StringVarP(&opts.Account, "account", "a", opts.Account, "Account name to use (or set THREADS_ACCOUNT)")
-	cmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", opts.Output, "Output format: text, json")
+	cmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", opts.Output, "Output format: text, json, jsonl")
 	cmd.PersistentFlags().BoolVar(&opts.JSON, "json", false, "Shortcut for --output json")
 	cmd.PersistentFlags().StringVar(&opts.Color, "color", opts.Color, "Color output: auto, always, never")
 	cmd.PersistentFlags().BoolVar(&opts.NoColor, "no-color", false, "Shortcut for --color never")
@@ -197,11 +197,12 @@ func NewVersionCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			io := iocontext.GetIO(cmd.Context())
 			if outfmt.IsJSON(cmd.Context()) {
-				return outfmt.WriteJSONTo(io.Out, map[string]any{
+				out := outfmt.FromContext(cmd.Context(), outfmt.WithWriter(io.Out))
+				return out.Output(map[string]any{
 					"version":    Version,
 					"commit":     Commit,
 					"build_date": BuildDate,
-				}, outfmt.GetQuery(cmd.Context()))
+				})
 			}
 			fmt.Fprintf(io.Out, "threads %s\n", Version)     //nolint:errcheck // Best-effort output
 			fmt.Fprintf(io.Out, "  commit: %s\n", Commit)    //nolint:errcheck // Best-effort output

@@ -377,9 +377,9 @@ threads auth refresh
 All commands support these flags:
 
 - `--account <name>`, `-a` - Account to use (overrides THREADS_ACCOUNT)
-- `--output <format>`, `-o` - Output format: `text` or `json` (default: text)
+- `--output <format>`, `-o` - Output format: `text`, `json`, or `jsonl` (default: text)
 - `--json` - Shortcut for `--output json`
-- `--query <expr>`, `-q` - JQ filter expression for JSON output
+- `--query <expr>`, `-q` - JQ filter expression for structured output (`json`/`jsonl`)
 - `--yes`, `-y` - Skip confirmation prompts (useful for scripts and automation)
 - `--no-prompt` - Alias for `--yes`
 - `--color <mode>` - Color output: `auto`, `always`, `never`
@@ -389,6 +389,8 @@ All commands support these flags:
 - `--version` - Show version information
 
 Note: many list-style commands also support `--limit` (and sometimes `--cursor`) as command-specific flags.
+
+Tip: `--output jsonl` is useful for list-style commands, emitting one JSON object per line for easy streaming and piping.
 
 ## Agent Discovery
 

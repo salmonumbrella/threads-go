@@ -73,7 +73,12 @@ Examples:
 			payload := buildHelpJSON(target)
 
 			io := iocontext.GetIO(cmd.Context())
-			// This command always emits JSON.
+			// This command always emits structured output, regardless of --output.
+			if outfmt.IsJSONL(cmd.Context()) {
+				ctx := outfmt.NewContext(cmd.Context(), outfmt.JSONL)
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				return out.Output(payload)
+			}
 			return outfmt.WriteJSONTo(io.Out, payload, outfmt.GetQuery(cmd.Context()))
 		},
 	}
