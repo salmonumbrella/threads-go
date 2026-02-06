@@ -59,17 +59,8 @@ Results can be sorted by popularity (top) or recency (recent).`,
 			}
 
 			if best {
-				emit = strings.ToLower(strings.TrimSpace(emit))
 				if emit == "" {
 					emit = "json"
-				}
-				switch emit {
-				case "json", "id", "url":
-				default:
-					return &UserFriendlyError{
-						Message:    fmt.Sprintf("Invalid --emit value: %s", emit),
-						Suggestion: "Valid values are: json, id, url",
-					}
 				}
 			}
 
@@ -151,63 +142,22 @@ Results can be sorted by popularity (top) or recency (recent).`,
 				}
 
 				item := result.Data[0]
-
-				// When best+emit is requested, allow emitting a scalar in text mode for easy chaining.
-				if !outfmt.IsJSON(ctx) {
-					switch emit {
-					case "id":
-						fmt.Fprintln(io.Out, item.ID) //nolint:errcheck // Best-effort output
-						return nil
-					case "url":
-						if strings.TrimSpace(item.Permalink) == "" {
-							return &UserFriendlyError{
-								Message:    "Cannot emit url: permalink is empty",
-								Suggestion: "Use --emit id or --emit json",
-							}
-						}
-						fmt.Fprintln(io.Out, item.Permalink) //nolint:errcheck // Best-effort output
-						return nil
-					}
+				emMode, errMode := parseEmitMode(emit)
+				if errMode != nil {
+					return errMode
 				}
-
-				// JSON mode: emit stable wrapper.
-				if outfmt.IsJSON(ctx) {
-					out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-					switch emit {
-					case "id":
-						return out.Output(map[string]any{"id": item.ID})
-					case "url":
-						return out.Output(map[string]any{"url": item.Permalink})
-					default:
-						return out.Output(map[string]any{
-							"id":   item.ID,
-							"item": item,
-						})
-					}
-				}
-
-				// Text mode default.
-				fmt.Fprintf(io.Out, "%s\n", item.ID) //nolint:errcheck // Best-effort output
-				if strings.TrimSpace(item.Permalink) != "" {
-					fmt.Fprintf(io.Out, "%s\n", item.Permalink) //nolint:errcheck // Best-effort output
-				}
-				return nil
+				return emitResult(ctx, io, emMode, item.ID, item.Permalink, item)
 			}
 
 			if all {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-				pageCursor := cursor
 				var allPosts []api.Post
 				var allRows [][]string
 				var lastPaging api.Paging
 
+				// Use the already-fetched result as the first page, then paginate from its cursor.
+				page := result
 				for {
-					opts.After = pageCursor
-					page, errPage := client.KeywordSearch(ctx, query, opts)
-					if errPage != nil {
-						return WrapError("search failed", errPage)
-					}
-
 					lastPaging = page.Paging
 					next := pagingAfter(page.Paging)
 
@@ -234,10 +184,15 @@ Results can be sorted by popularity (top) or recency (recent).`,
 						}
 					}
 
-					if next == "" || next == pageCursor || len(page.Data) == 0 {
+					if next == "" || len(page.Data) == 0 {
 						break
 					}
-					pageCursor = next
+					opts.After = next
+					nextPage, errPage := client.KeywordSearch(ctx, query, opts)
+					if errPage != nil {
+						return WrapError("search failed", errPage)
+					}
+					page = nextPage
 				}
 
 				if outfmt.GetFormat(ctx) == outfmt.JSON {

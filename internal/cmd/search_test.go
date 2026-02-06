@@ -181,3 +181,84 @@ func TestSearchCmd_All_JSONL(t *testing.T) {
 		t.Fatalf("unexpected output: %q", out)
 	}
 }
+
+// TestSearchCmd_All_NoDoubleFetch verifies that --all reuses the initial fetch
+// rather than re-fetching the first page, resulting in exactly 2 API calls
+// for a 2-page result set.
+func TestSearchCmd_All_NoDoubleFetch(t *testing.T) {
+	var searchCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/refresh_access_token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		}
+
+		if r.URL.Path != "/keyword_search" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		searchCalls++
+		after := r.URL.Query().Get("after")
+		w.Header().Set("Content-Type", "application/json")
+		switch after {
+		case "":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{
+					{
+						"id":                 "p1",
+						"permalink":          "https://www.threads.net/t/p1",
+						"timestamp":          time.Now().UTC().Format(time.RFC3339),
+						"username":           "alice",
+						"media_product_type": "THREADS",
+						"is_reply":           false,
+					},
+				},
+				"paging": map[string]any{"cursors": map[string]any{"after": "c2"}},
+			})
+		case "c2":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{
+					{
+						"id":                 "p2",
+						"permalink":          "https://www.threads.net/t/p2",
+						"timestamp":          time.Now().UTC().Format(time.RFC3339),
+						"username":           "bob",
+						"media_product_type": "THREADS",
+						"is_reply":           false,
+					},
+				},
+				"paging": map[string]any{},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":   []map[string]any{},
+				"paging": map[string]any{},
+			})
+		}
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "jsonl")
+
+	cmd := NewSearchCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"coffee", "--all"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("search --all failed: %v", err)
+	}
+
+	// With the fix, the initial fetch is reused as the first page,
+	// so we expect exactly 2 calls: initial + one pagination fetch.
+	if searchCalls != 2 {
+		t.Fatalf("expected 2 search API calls (initial + 1 page), got %d", searchCalls)
+	}
+}

@@ -1,9 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/salmonumbrella/threads-cli/internal/api"
@@ -41,17 +38,8 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 			}
 
 			if best {
-				emit = strings.ToLower(strings.TrimSpace(emit))
 				if emit == "" {
 					emit = "json"
-				}
-				switch emit {
-				case "json", "id":
-				default:
-					return &UserFriendlyError{
-						Message:    fmt.Sprintf("Invalid --emit value: %s", emit),
-						Suggestion: "Valid values are: json, id",
-					}
 				}
 			}
 
@@ -91,38 +79,11 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 				}
 
 				item := result.Data[0]
-
-				// When best+emit is requested, allow emitting a scalar in text mode for easy chaining.
-				if !outfmt.IsJSON(ctx) {
-					switch emit {
-					case "id":
-						fmt.Fprintln(io.Out, item.ID) //nolint:errcheck // Best-effort output
-						return nil
-					}
+				mode, errMode := parseEmitMode(emit)
+				if errMode != nil {
+					return errMode
 				}
-
-				// JSON mode: emit stable wrapper.
-				if outfmt.IsJSON(ctx) {
-					switch emit {
-					case "id":
-						return out.Output(map[string]any{"id": item.ID})
-					default:
-						return out.Output(map[string]any{
-							"id":   item.ID,
-							"item": item,
-						})
-					}
-				}
-
-				// Text mode default.
-				fmt.Fprintf(io.Out, "%s\n", item.ID) //nolint:errcheck // Best-effort output
-				if strings.TrimSpace(item.Name) != "" {
-					fmt.Fprintf(io.Out, "%s\n", item.Name) //nolint:errcheck // Best-effort output
-				}
-				if strings.TrimSpace(item.Address) != "" {
-					fmt.Fprintf(io.Out, "%s\n", item.Address) //nolint:errcheck // Best-effort output
-				}
-				return nil
+				return emitResult(ctx, io, mode, item.ID, "", item)
 			}
 
 			if outfmt.IsJSONL(ctx) {
@@ -169,7 +130,10 @@ func newLocationsGetCmd(f *Factory) *cobra.Command {
 		Short: "Get location details",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			locationID := args[0]
+			locationID, err := normalizeIDArg(args[0], "location")
+			if err != nil {
+				return err
+			}
 
 			ctx := cmd.Context()
 			client, err := f.Client(ctx)

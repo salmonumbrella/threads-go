@@ -73,6 +73,8 @@ func normalizeIDPrefix(prefix string) string {
 		return "reply"
 	case "user", "users", "u":
 		return "user"
+	case "location", "loc", "l":
+		return "location"
 	}
 	return ""
 }
@@ -90,11 +92,18 @@ func extractIDFromURL(raw string) (string, string, bool) {
 		return "", "", false
 	}
 
-	// Query param fallbacks
+	// Query param fallbacks – map param key to the appropriate kind.
 	q := u.Query()
-	for _, key := range []string{"post_id", "reply_id", "id"} {
-		if v := strings.TrimSpace(q.Get(key)); v != "" {
-			return v, "post", true
+	for _, qp := range []struct {
+		key  string
+		kind string
+	}{
+		{"post_id", "post"},
+		{"reply_id", "reply"},
+		{"id", ""}, // generic – no kind assertion
+	} {
+		if v := strings.TrimSpace(q.Get(qp.key)); v != "" {
+			return v, qp.kind, true
 		}
 	}
 

@@ -26,6 +26,18 @@ func TestNormalizeIDArg(t *testing.T) {
 		{name: "url t other host", input: "https://api.net/t/12345", kind: "post", want: "12345"},
 		{name: "url profile post", input: "https://www.threads.net/@alice/post/999", kind: "post", want: "999"},
 		{name: "url query id", input: "https://example.com/whatever?id=777", kind: "post", want: "777"},
+		// reply_id URL returns kind "reply", so it works when expected kind is "reply"
+		{name: "url reply_id ok", input: "https://example.com/x?reply_id=888", kind: "reply", want: "888"},
+		// reply_id URL returns kind "reply", which mismatches expected "post"
+		{name: "url reply_id mismatch", input: "https://example.com/x?reply_id=888", kind: "post", wantErr: true, errSubstr: "URL is for reply"},
+		// generic ?id= param returns no kind assertion, works for any expected kind
+		{name: "url generic id reply", input: "https://example.com/x?id=999", kind: "reply", want: "999"},
+		// location prefixes
+		{name: "location prefix", input: "loc:42", kind: "location", want: "42"},
+		{name: "location prefix full", input: "location:42", kind: "location", want: "42"},
+		{name: "location prefix l", input: "l:42", kind: "location", want: "42"},
+		{name: "location prefix mismatch", input: "post:42", kind: "location", wantErr: true, errSubstr: "invalid location ID"},
+		{name: "location hash", input: "#42", kind: "location", want: "42"},
 	}
 
 	for _, tt := range tests {
