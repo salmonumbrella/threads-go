@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/salmonumbrella/threads-cli/internal/api"
@@ -24,6 +27,8 @@ func NewLocationsCmd(f *Factory) *cobra.Command {
 
 func newLocationsSearchCmd(f *Factory) *cobra.Command {
 	var lat, lng float64
+	var best bool
+	var emit string
 
 	cmd := &cobra.Command{
 		Use:   "search [query]",
@@ -33,6 +38,21 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 			var query string
 			if len(args) > 0 {
 				query = args[0]
+			}
+
+			if best {
+				emit = strings.ToLower(strings.TrimSpace(emit))
+				if emit == "" {
+					emit = "json"
+				}
+				switch emit {
+				case "json", "id":
+				default:
+					return &UserFriendlyError{
+						Message:    fmt.Sprintf("Invalid --emit value: %s", emit),
+						Suggestion: "Valid values are: json, id",
+					}
+				}
 			}
 
 			if query == "" && lat == 0 && lng == 0 {
@@ -62,6 +82,49 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 			io := iocontext.GetIO(ctx)
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 
+			if best {
+				if len(result.Data) == 0 {
+					return &UserFriendlyError{
+						Message:    "No locations found",
+						Suggestion: "Try a different query or broaden your search",
+					}
+				}
+
+				item := result.Data[0]
+
+				// When best+emit is requested, allow emitting a scalar in text mode for easy chaining.
+				if !outfmt.IsJSON(ctx) {
+					switch emit {
+					case "id":
+						fmt.Fprintln(io.Out, item.ID) //nolint:errcheck // Best-effort output
+						return nil
+					}
+				}
+
+				// JSON mode: emit stable wrapper.
+				if outfmt.IsJSON(ctx) {
+					switch emit {
+					case "id":
+						return out.Output(map[string]any{"id": item.ID})
+					default:
+						return out.Output(map[string]any{
+							"id":   item.ID,
+							"item": item,
+						})
+					}
+				}
+
+				// Text mode default.
+				fmt.Fprintf(io.Out, "%s\n", item.ID) //nolint:errcheck // Best-effort output
+				if strings.TrimSpace(item.Name) != "" {
+					fmt.Fprintf(io.Out, "%s\n", item.Name) //nolint:errcheck // Best-effort output
+				}
+				if strings.TrimSpace(item.Address) != "" {
+					fmt.Fprintf(io.Out, "%s\n", item.Address) //nolint:errcheck // Best-effort output
+				}
+				return nil
+			}
+
 			if outfmt.IsJSON(ctx) {
 				return out.Output(result)
 			}
@@ -87,6 +150,8 @@ func newLocationsSearchCmd(f *Factory) *cobra.Command {
 
 	cmd.Flags().Float64Var(&lat, "lat", 0, "Latitude for coordinate search")
 	cmd.Flags().Float64Var(&lng, "lng", 0, "Longitude for coordinate search")
+	cmd.Flags().BoolVar(&best, "best", false, "Auto-select the best result (non-interactive)")
+	cmd.Flags().StringVar(&emit, "emit", "json", "When using --best, emit: json|id")
 
 	return cmd
 }

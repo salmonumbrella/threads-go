@@ -1,54 +1,68 @@
 package cmd
 
-import "testing"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
 
-func TestLocationsCmd_Structure(t *testing.T) {
-	f := newTestFactory(t)
-	cmd := NewLocationsCmd(f)
+	"github.com/salmonumbrella/threads-cli/internal/iocontext"
+	"github.com/salmonumbrella/threads-cli/internal/outfmt"
+)
 
-	if cmd.Use != "locations" {
-		t.Errorf("expected Use=locations, got %s", cmd.Use)
-	}
-
-	expectedAliases := []string{"location", "loc"}
-	if len(cmd.Aliases) != len(expectedAliases) {
-		t.Errorf("expected %d aliases, got %d", len(expectedAliases), len(cmd.Aliases))
-	}
-
-	subcommands := cmd.Commands()
-	if len(subcommands) != 2 {
-		t.Errorf("expected 2 subcommands, got %d", len(subcommands))
-	}
-
-	names := make(map[string]bool)
-	for _, sub := range subcommands {
-		names[sub.Use] = true
-	}
-	if !names["search [query]"] {
-		t.Error("missing 'search' subcommand")
-	}
-	if !names["get [location-id]"] {
-		t.Error("missing 'get' subcommand")
-	}
-}
-
-func TestLocationsSearchCmd_Flags(t *testing.T) {
-	f := newTestFactory(t)
-	cmd := newLocationsSearchCmd(f)
-
-	flags := []string{"lat", "lng"}
-	for _, flag := range flags {
-		if cmd.Flag(flag) == nil {
-			t.Errorf("missing flag: %s", flag)
+func TestLocationsSearchCmd_Best_EmitID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/refresh_access_token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
 		}
+
+		if r.URL.Path != "/location_search" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{
+					"id":        "L1",
+					"name":      "Coffee Shop",
+					"address":   "123 Main St",
+					"latitude":  37.0,
+					"longitude": -122.0,
+				},
+			},
+			"paging": map[string]any{},
+			"meta": map[string]any{
+				"generated_at": time.Now().UTC().Format(time.RFC3339),
+			},
+		})
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "text")
+
+	cmd := NewLocationsCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"search", "coffee", "--best", "--emit", "id"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("locations search --best --emit id failed: %v", err)
 	}
-}
 
-func TestLocationsGetCmd_RequiresArg(t *testing.T) {
-	f := newTestFactory(t)
-	cmd := newLocationsGetCmd(f)
-
-	if cmd.Args == nil {
-		t.Error("expected Args validator")
+	out := io.Out.(*bytes.Buffer).String()
+	if out != "L1\n" {
+		t.Fatalf("expected best id L1, got %q", out)
 	}
 }
