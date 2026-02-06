@@ -7,6 +7,9 @@
 *.out
 /threads
 
+# Temporary files
+.goreleaser.yaml.tmp
+
 # Dependencies
 vendor/
 

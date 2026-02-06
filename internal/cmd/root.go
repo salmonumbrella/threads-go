@@ -20,12 +20,15 @@ var (
 
 // RootOptions captures global flags.
 type RootOptions struct {
-	Account string
-	Output  string
-	Color   string
-	Debug   bool
-	Query   string
-	Yes     bool
+	Account  string
+	Output   string
+	JSON     bool
+	Color    string
+	NoColor  bool
+	Debug    bool
+	Query    string
+	Yes      bool
+	NoPrompt bool
 }
 
 // Execute runs the CLI with a new factory and root command.
@@ -56,14 +59,13 @@ func ExecuteCommand(cmd *cobra.Command, f *Factory) error {
 
 	err := cmd.Execute()
 	if err != nil {
-		formatted := FormatError(err)
 		if io == nil && f != nil {
 			io = f.IO
 		}
 		if io == nil {
 			io = iocontext.DefaultIO()
 		}
-		fmt.Fprintln(io.ErrOut, formatted.Error()) //nolint:errcheck // Best-effort output
+		WriteErrorTo(cmd.Context(), io.ErrOut, err)
 	}
 	return err
 }
@@ -102,6 +104,8 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 			output := f.Config.Output
 			if cmd.Flags().Changed("output") {
 				output = opts.Output
+			} else if cmd.Flags().Changed("json") && opts.JSON {
+				output = "json"
 			}
 			if output == "" {
 				output = "text"
@@ -116,6 +120,8 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 			color := f.Config.Color
 			if cmd.Flags().Changed("color") {
 				color = opts.Color
+			} else if cmd.Flags().Changed("no-color") && opts.NoColor {
+				color = "never"
 			}
 			if color == "" {
 				color = "auto"
@@ -147,7 +153,7 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 
 			ctx = outfmt.NewContext(ctx, f.Output)
 			ctx = outfmt.WithQuery(ctx, opts.Query)
-			ctx = outfmt.WithYes(ctx, opts.Yes)
+			ctx = outfmt.WithYes(ctx, opts.Yes || opts.NoPrompt)
 			ctx = outfmt.WithColorMode(ctx, f.ColorMode)
 			cmd.SetContext(ctx)
 
@@ -157,10 +163,13 @@ Designed to be agent-friendly for automation with Claude and other AI assistants
 
 	cmd.PersistentFlags().StringVarP(&opts.Account, "account", "a", opts.Account, "Account name to use (or set THREADS_ACCOUNT)")
 	cmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", opts.Output, "Output format: text, json")
+	cmd.PersistentFlags().BoolVar(&opts.JSON, "json", false, "Shortcut for --output json")
 	cmd.PersistentFlags().StringVar(&opts.Color, "color", opts.Color, "Color output: auto, always, never")
+	cmd.PersistentFlags().BoolVar(&opts.NoColor, "no-color", false, "Shortcut for --color never")
 	cmd.PersistentFlags().BoolVar(&opts.Debug, "debug", opts.Debug, "Enable debug output")
 	cmd.PersistentFlags().StringVarP(&opts.Query, "query", "q", "", "JQ query to filter JSON output")
 	cmd.PersistentFlags().BoolVarP(&opts.Yes, "yes", "y", false, "Skip confirmation prompts")
+	cmd.PersistentFlags().BoolVar(&opts.NoPrompt, "no-prompt", false, "Alias for --yes (skip confirmations)")
 
 	cmd.AddCommand(NewAuthCmd(f))
 	cmd.AddCommand(NewCompletionCmd())
@@ -186,6 +195,13 @@ func NewVersionCmd() *cobra.Command {
 		Short: "Show version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			io := iocontext.GetIO(cmd.Context())
+			if outfmt.IsJSON(cmd.Context()) {
+				return outfmt.WriteJSONTo(io.Out, map[string]any{
+					"version":    Version,
+					"commit":     Commit,
+					"build_date": BuildDate,
+				}, outfmt.GetQuery(cmd.Context()))
+			}
 			fmt.Fprintf(io.Out, "threads %s\n", Version)     //nolint:errcheck // Best-effort output
 			fmt.Fprintf(io.Out, "  commit: %s\n", Commit)    //nolint:errcheck // Best-effort output
 			fmt.Fprintf(io.Out, "  built:  %s\n", BuildDate) //nolint:errcheck // Best-effort output

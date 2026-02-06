@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +30,13 @@ type Printer struct {
 func New(io *iocontext.IO, colorMode outfmt.ColorMode) *Printer {
 	out := io.Out
 	errOut := io.ErrOut
+	return NewWithWriters(out, errOut, colorMode)
+}
+
+// NewWithWriters creates a Printer using explicit writers.
+// This is useful when you want to route status/progress output to stderr (e.g. in JSON mode)
+// while keeping command data on stdout.
+func NewWithWriters(out io.Writer, errOut io.Writer, colorMode outfmt.ColorMode) *Printer {
 	if out == nil {
 		out = os.Stdout
 	}
@@ -59,13 +65,6 @@ func New(io *iocontext.IO, colorMode outfmt.ColorMode) *Printer {
 		Gray:   output.Color("#6b7280"),
 		Cyan:   output.Color("#06b6d4"),
 	}
-}
-
-// FromContext creates a Printer from context.
-func FromContext(ctx context.Context) *Printer {
-	io := iocontext.GetIO(ctx)
-	colorMode := outfmt.GetColorMode(ctx)
-	return New(io, colorMode)
 }
 
 // Success prints a success message.

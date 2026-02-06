@@ -2,11 +2,15 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/salmonumbrella/threads-cli/internal/api"
+	"github.com/salmonumbrella/threads-cli/internal/outfmt"
 )
 
 // UserFriendlyError wraps an error with a user-friendly message and optional suggestion.
@@ -25,6 +29,104 @@ func (e *UserFriendlyError) Error() string {
 
 func (e *UserFriendlyError) Unwrap() error {
 	return e.Cause
+}
+
+type errorEnvelope struct {
+	Error errorPayload `json:"error"`
+}
+
+type errorPayload struct {
+	Message    string `json:"message"`
+	Suggestion string `json:"suggestion,omitempty"`
+
+	// Kind is a stable, coarse classification that agents can use for branching.
+	Kind string `json:"kind,omitempty"` // auth|rate_limit|validation|network|api|unknown
+
+	// API details, when available.
+	Code      int    `json:"code,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Field     string `json:"field,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
+	Temporary bool   `json:"temporary,omitempty"`
+
+	// RetryAfterSeconds is set for rate limit errors when present.
+	RetryAfterSeconds int64 `json:"retry_after_seconds,omitempty"`
+}
+
+// WriteErrorTo writes a formatted error to w.
+//
+// In JSON output mode, this emits a structured JSON error object to avoid
+// contaminating stdout pipelines with plain-text diagnostics.
+func WriteErrorTo(ctx context.Context, w io.Writer, err error) {
+	if err == nil {
+		return
+	}
+
+	formatted := FormatError(err)
+	if !outfmt.IsJSON(ctx) {
+		fmt.Fprintln(w, formatted.Error()) //nolint:errcheck // Best-effort output
+		return
+	}
+
+	_ = writeErrorJSONTo(w, formatted) // Best-effort output in error paths.
+}
+
+func writeErrorJSONTo(w io.Writer, formatted error) error {
+	root := formatted
+	var uf *UserFriendlyError
+	if errors.As(formatted, &uf) {
+		if uf.Cause != nil {
+			root = uf.Cause
+		}
+	}
+
+	payload := errorPayload{
+		Message: formatted.Error(),
+	}
+	if uf != nil {
+		payload.Message = uf.Message
+		payload.Suggestion = uf.Suggestion
+	}
+
+	// Enrich with typed API errors if we can.
+	var authErr *api.AuthenticationError
+	var rateErr *api.RateLimitError
+	var valErr *api.ValidationError
+	var netErr *api.NetworkError
+	var apiErr *api.APIError
+
+	switch {
+	case errors.As(root, &authErr):
+		payload.Kind = "auth"
+		payload.Code = authErr.Code
+		payload.Type = authErr.Type
+	case errors.As(root, &rateErr):
+		payload.Kind = "rate_limit"
+		payload.Code = rateErr.Code
+		payload.Type = rateErr.Type
+		payload.RetryAfterSeconds = int64(rateErr.RetryAfter.Seconds())
+	case errors.As(root, &valErr):
+		payload.Kind = "validation"
+		payload.Code = valErr.Code
+		payload.Type = valErr.Type
+		payload.Field = valErr.Field
+	case errors.As(root, &netErr):
+		payload.Kind = "network"
+		payload.Code = netErr.Code
+		payload.Type = netErr.Type
+		payload.Temporary = netErr.Temporary
+	case errors.As(root, &apiErr):
+		payload.Kind = "api"
+		payload.Code = apiErr.Code
+		payload.Type = apiErr.Type
+		payload.RequestID = apiErr.RequestID
+	default:
+		payload.Kind = "unknown"
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(errorEnvelope{Error: payload})
 }
 
 // FormatError converts API errors and common errors into user-friendly messages

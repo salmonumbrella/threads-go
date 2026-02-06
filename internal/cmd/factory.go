@@ -81,8 +81,19 @@ func NewFactory(ctx context.Context, opts FactoryOptions) (*Factory, error) {
 // UI returns a configured UI printer.
 func (f *Factory) UI(ctx context.Context) *ui.Printer {
 	io := iocontext.GetIO(ctx)
+	if io == nil {
+		io = f.IO
+	}
+
 	color := outfmt.GetColorMode(ctx)
-	return ui.New(io, color)
+
+	// In JSON mode, keep stdout clean for machine-readable output by routing
+	// UI/status messages to stderr.
+	out := io.Out
+	if outfmt.IsJSON(ctx) && io.ErrOut != nil {
+		out = io.ErrOut
+	}
+	return ui.NewWithWriters(out, io.ErrOut, color)
 }
 
 // Client returns a Threads client for the active account.

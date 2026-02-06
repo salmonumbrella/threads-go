@@ -13,9 +13,10 @@ import (
 // NewRepliesCmd builds the replies command group.
 func NewRepliesCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "replies",
-		Short: "Manage replies to posts",
-		Long:  `List, create, hide, and manage replies to Threads posts.`,
+		Use:     "replies",
+		Aliases: []string{"reply", "r"},
+		Short:   "Manage replies to posts",
+		Long:    `List, create, hide, and manage replies to Threads posts.`,
 	}
 
 	cmd.AddCommand(newRepliesListCmd(f))
@@ -31,8 +32,9 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
-		Use:   "list [post-id]",
-		Short: "List replies to a post",
+		Use:     "list [post-id]",
+		Aliases: []string{"ls"},
+		Short:   "List replies to a post",
 		Long: `List all replies to a specific post.
 
 Results are paginated and can be filtered with --limit.`,
@@ -99,8 +101,9 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 	var text string
 
 	cmd := &cobra.Command{
-		Use:   "create [post-id]",
-		Short: "Reply to a post",
+		Use:     "create [post-id]",
+		Aliases: []string{"new", "add"},
+		Short:   "Reply to a post",
 		Long: `Create a reply to a specific post.
 
 Provide the text of your reply with the --text flag.`,
@@ -140,8 +143,9 @@ Provide the text of your reply with the --text flag.`,
 
 func newRepliesHideCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "hide [reply-id]",
-		Short: "Hide a reply",
+		Use:     "hide [reply-id]",
+		Aliases: []string{"rm", "del"},
+		Short:   "Hide a reply",
 		Long: `Hide a reply from public view.
 
 Hidden replies are not visible to other users but can be unhidden later.
@@ -160,6 +164,16 @@ You can only hide replies on posts that you own.`,
 				return WrapError("failed to hide reply", err)
 			}
 
+			io := iocontext.GetIO(ctx)
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSONTo(io.Out, map[string]any{
+					"ok":       true,
+					"reply_id": replyID,
+					"hidden":   true,
+					"action":   "hide_reply",
+				}, outfmt.GetQuery(ctx))
+			}
+
 			f.UI(ctx).Success("Reply %s hidden", replyID)
 			return nil
 		},
@@ -169,10 +183,11 @@ You can only hide replies on posts that you own.`,
 
 func newRepliesUnhideCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "unhide [reply-id]",
-		Short: "Unhide a reply",
-		Long:  `Unhide a previously hidden reply, making it visible again.`,
-		Args:  cobra.ExactArgs(1),
+		Use:     "unhide [reply-id]",
+		Aliases: []string{"restore"},
+		Short:   "Unhide a reply",
+		Long:    `Unhide a previously hidden reply, making it visible again.`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			replyID := args[0]
 			ctx := cmd.Context()
@@ -186,6 +201,16 @@ func newRepliesUnhideCmd(f *Factory) *cobra.Command {
 				return WrapError("failed to unhide reply", err)
 			}
 
+			io := iocontext.GetIO(ctx)
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSONTo(io.Out, map[string]any{
+					"ok":       true,
+					"reply_id": replyID,
+					"hidden":   false,
+					"action":   "unhide_reply",
+				}, outfmt.GetQuery(ctx))
+			}
+
 			f.UI(ctx).Success("Reply %s unhidden", replyID)
 			return nil
 		},
@@ -197,8 +222,9 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
-		Use:   "conversation [post-id]",
-		Short: "Get full conversation thread",
+		Use:     "conversation [post-id]",
+		Aliases: []string{"thread"},
+		Short:   "Get full conversation thread",
 		Long: `Get the full conversation thread for a post.
 
 Returns all replies in the conversation in a flattened format.`,

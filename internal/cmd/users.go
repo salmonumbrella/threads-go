@@ -14,9 +14,10 @@ import (
 // NewUsersCmd builds the users command group.
 func NewUsersCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "users",
-		Short: "Manage user profiles",
-		Long:  `Retrieve and view user profile information.`,
+		Use:     "users",
+		Aliases: []string{"user", "u"},
+		Short:   "Manage user profiles",
+		Long:    `Retrieve and view user profile information.`,
 	}
 
 	cmd.AddCommand(newUsersMeCmd(f))
@@ -52,10 +53,11 @@ func newUsersMeCmd(f *Factory) *cobra.Command {
 
 func newUsersGetCmd(f *Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get [user-id]",
-		Short: "Get user by ID",
-		Long:  `Retrieve user profile information by their user ID.`,
-		Args:  cobra.ExactArgs(1),
+		Use:     "get [user-id]",
+		Aliases: []string{"show"},
+		Short:   "Get user by ID",
+		Long:    `Retrieve user profile information by their user ID.`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUsersGet(cmd, f, args[0])
 		},
@@ -64,8 +66,9 @@ func newUsersGetCmd(f *Factory) *cobra.Command {
 
 func newUsersLookupCmd(f *Factory) *cobra.Command {
 	return &cobra.Command{
-		Use:   "lookup [username]",
-		Short: "Lookup public profile by username",
+		Use:     "lookup [username]",
+		Aliases: []string{"find", "search"},
+		Short:   "Lookup public profile by username",
 		Long: `Look up a public profile by username.
 
 The username can be provided with or without the @ prefix.

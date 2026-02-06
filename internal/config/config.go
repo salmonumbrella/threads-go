@@ -48,7 +48,7 @@ func Load() (*Config, error) {
 // LoadFile reads config from a specific path without applying env overrides.
 func LoadFile(path string) (*Config, error) {
 	cfg := Default()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // The config path is chosen by the local user running the CLI.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return cfg, nil

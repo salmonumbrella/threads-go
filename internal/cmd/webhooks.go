@@ -14,8 +14,9 @@ import (
 // NewWebhooksCmd builds the webhooks command group.
 func NewWebhooksCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "webhooks",
-		Short: "Manage webhook subscriptions",
+		Use:     "webhooks",
+		Aliases: []string{"webhook", "wh"},
+		Short:   "Manage webhook subscriptions",
 		Long: `Manage webhook subscriptions for receiving real-time notifications.
 
 Webhooks allow you to receive instant notifications when events occur on Threads,
@@ -47,8 +48,9 @@ func newWebhooksSubscribeCmd(f *Factory) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "subscribe",
-		Short: "Subscribe to webhook events",
+		Use:     "subscribe",
+		Aliases: []string{"sub", "add"},
+		Short:   "Subscribe to webhook events",
 		Long: `Create a new webhook subscription to receive real-time notifications.
 
 Your callback URL must be HTTPS and publicly accessible. Meta will send a
@@ -148,9 +150,10 @@ Supported events:
 
 func newWebhooksListCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List active webhook subscriptions",
-		Long:  `List all active webhook subscriptions for your Threads app.`,
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List active webhook subscriptions",
+		Long:    `List all active webhook subscriptions for your Threads app.`,
 		Example: `  # List all subscriptions
   threads webhooks list
 
@@ -210,8 +213,9 @@ func newWebhooksListCmd(f *Factory) *cobra.Command {
 
 func newWebhooksDeleteCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "delete [subscription-id]",
-		Short: "Delete a webhook subscription",
+		Use:     "delete [subscription-id]",
+		Aliases: []string{"del", "rm"},
+		Short:   "Delete a webhook subscription",
 		Long: `Delete a webhook subscription by its ID or object type.
 
 After deletion, your callback URL will no longer receive events for this subscription.`,
@@ -226,6 +230,12 @@ After deletion, your callback URL will no longer receive events for this subscri
 			subscriptionID := args[0]
 
 			io := iocontext.GetIO(ctx)
+			if outfmt.IsJSON(ctx) && !outfmt.GetYes(ctx) {
+				return &UserFriendlyError{
+					Message:    "Refusing to prompt for confirmation in JSON output mode",
+					Suggestion: "Re-run with --yes (or --no-prompt) to confirm deletion",
+				}
+			}
 			if !outfmt.GetYes(ctx) {
 				fmt.Fprintf(io.Out, "Webhook subscription to delete: %s\n\n", subscriptionID) //nolint:errcheck // Best-effort output
 				if !f.Confirm(ctx, "Delete this webhook subscription?") {

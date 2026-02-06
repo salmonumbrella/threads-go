@@ -23,9 +23,10 @@ const (
 // NewPostsCmd builds the posts command group.
 func NewPostsCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "posts",
-		Short: "Manage posts",
-		Long:  `Create, read, list, and delete posts on Threads.`,
+		Use:     "posts",
+		Aliases: []string{"post", "p"},
+		Short:   "Manage posts",
+		Long:    `Create, read, list, and delete posts on Threads.`,
 	}
 
 	cmd.AddCommand(newPostsCreateCmd(f))
@@ -59,8 +60,9 @@ func newPostsCreateCmd(f *Factory) *cobra.Command {
 	opts := &postsCreateOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a new post",
+		Use:     "create",
+		Aliases: []string{"new", "add"},
+		Short:   "Create a new post",
 		Long: `Create a new post on Threads.
 
 Supports text, image, and video posts. For carousel posts, use 'threads posts carousel'.
@@ -282,8 +284,9 @@ func runPostsCreate(cmd *cobra.Command, f *Factory, opts *postsCreateOptions) er
 
 func newPostsGetCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "get [post-id]",
-		Short: "Get a single post by ID",
+		Use:     "get [post-id]",
+		Aliases: []string{"show"},
+		Short:   "Get a single post by ID",
 		Long: `Retrieve a single post by its ID.
 
 Example:
@@ -339,8 +342,9 @@ func newPostsListCmd(f *Factory) *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List user's posts",
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List user's posts",
 		Long: `List posts from the authenticated user.
 
 Examples:
@@ -425,8 +429,9 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
 
 func newPostsDeleteCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "delete [post-id]",
-		Short: "Delete a post",
+		Use:     "delete [post-id]",
+		Aliases: []string{"del", "rm"},
+		Short:   "Delete a post",
 		Long: `Delete a post by its ID.
 
 Requires confirmation unless --yes flag is provided.
@@ -449,13 +454,20 @@ func runPostsDelete(cmd *cobra.Command, f *Factory, postID string) error {
 		return err
 	}
 
-	post, err := client.GetPost(ctx, api.PostID(postID))
-	if err != nil {
-		return WrapError("failed to get post", err)
+	io := iocontext.GetIO(ctx)
+	if outfmt.IsJSON(ctx) && !outfmt.GetYes(ctx) {
+		return &UserFriendlyError{
+			Message:    "Refusing to prompt for confirmation in JSON output mode",
+			Suggestion: "Re-run with --yes (or --no-prompt) to confirm deletion",
+		}
 	}
 
-	io := iocontext.GetIO(ctx)
 	if !outfmt.GetYes(ctx) {
+		post, err := client.GetPost(ctx, api.PostID(postID))
+		if err != nil {
+			return WrapError("failed to get post", err)
+		}
+
 		fmt.Fprintln(io.Out, "Post to delete:")             //nolint:errcheck // Best-effort output
 		fmt.Fprintf(io.Out, "  ID:   %s\n", post.ID)        //nolint:errcheck // Best-effort output
 		fmt.Fprintf(io.Out, "  Type: %s\n", post.MediaType) //nolint:errcheck // Best-effort output
@@ -478,6 +490,15 @@ func runPostsDelete(cmd *cobra.Command, f *Factory, postID string) error {
 		return WrapError("failed to delete post", err)
 	}
 
+	if outfmt.IsJSON(ctx) {
+		return outfmt.WriteJSONTo(io.Out, map[string]any{
+			"ok":      true,
+			"post_id": postID,
+			"deleted": true,
+			"action":  "delete_post",
+		}, outfmt.GetQuery(ctx))
+	}
+
 	f.UI(ctx).Success("Post deleted successfully")
 	return nil
 }
@@ -496,8 +517,9 @@ func newPostsCarouselCmd(f *Factory) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "carousel",
-		Short: "Create a carousel post with multiple images/videos",
+		Use:     "carousel",
+		Aliases: []string{"car"},
+		Short:   "Create a carousel post with multiple images/videos",
 		Long: `Create a carousel post with 2-20 media items.
 
 Each item should be a URL to an image or video. Alt text can be provided
@@ -602,10 +624,11 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 	var videoURL string
 
 	cmd := &cobra.Command{
-		Use:   "quote [post-id]",
-		Short: "Create a quote post",
-		Long:  "Quote an existing post with optional text, image, or video.",
-		Args:  cobra.ExactArgs(1),
+		Use:     "quote [post-id]",
+		Aliases: []string{"qt"},
+		Short:   "Create a quote post",
+		Long:    "Quote an existing post with optional text, image, or video.",
+		Args:    cobra.ExactArgs(1),
 		Example: `  # Quote with text
   threads posts quote 12345 --text "Great point!"
 
@@ -644,8 +667,22 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-			return out.Output(post)
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+			}
+
+			f.UI(ctx).Success("Quote post created successfully!")
+			fmt.Fprintf(io.Out, "  ID:        %s\n", post.ID)        //nolint:errcheck // Best-effort output
+			fmt.Fprintf(io.Out, "  Permalink: %s\n", post.Permalink) //nolint:errcheck // Best-effort output
+			if post.Text != "" {
+				txt := post.Text
+				if len(txt) > 50 {
+					txt = txt[:50] + "..."
+				}
+				fmt.Fprintf(io.Out, "  Text:      %s\n", txt) //nolint:errcheck // Best-effort output
+			}
+
+			return nil
 		},
 	}
 
@@ -659,6 +696,7 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 func newPostsRepostCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "repost [post-id]",
+		Aliases: []string{"boost"},
 		Short:   "Repost an existing post",
 		Args:    cobra.ExactArgs(1),
 		Example: `  threads posts repost 12345`,
@@ -677,8 +715,14 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 			}
 
 			io := iocontext.GetIO(ctx)
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-			return out.Output(post)
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSONTo(io.Out, post, outfmt.GetQuery(ctx))
+			}
+
+			f.UI(ctx).Success("Repost created successfully!")
+			fmt.Fprintf(io.Out, "  ID:        %s\n", post.ID)        //nolint:errcheck // Best-effort output
+			fmt.Fprintf(io.Out, "  Permalink: %s\n", post.Permalink) //nolint:errcheck // Best-effort output
+			return nil
 		},
 	}
 	return cmd
@@ -686,8 +730,9 @@ func newPostsRepostCmd(f *Factory) *cobra.Command {
 
 func newPostsUnrepostCmd(f *Factory) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "unrepost [repost-id]",
-		Short: "Remove a repost",
+		Use:     "unrepost [repost-id]",
+		Aliases: []string{"undo-repost"},
+		Short:   "Remove a repost",
 		Long: `Remove a repost by its ID.
 
 This undoes a repost action. Note that you need the repost ID, not the original post ID.
@@ -710,6 +755,12 @@ Requires confirmation unless --yes flag is provided.`,
 			}
 
 			io := iocontext.GetIO(ctx)
+			if outfmt.IsJSON(ctx) && !outfmt.GetYes(ctx) {
+				return &UserFriendlyError{
+					Message:    "Refusing to prompt for confirmation in JSON output mode",
+					Suggestion: "Re-run with --yes (or --no-prompt) to confirm unrepost",
+				}
+			}
 			if !outfmt.GetYes(ctx) {
 				fmt.Fprintf(io.Out, "Repost to remove: %s\n\n", repostID) //nolint:errcheck // Best-effort output
 				if !f.Confirm(ctx, "Remove this repost?") {
@@ -720,6 +771,15 @@ Requires confirmation unless --yes flag is provided.`,
 
 			if err := client.UnrepostPost(ctx, api.PostID(repostID)); err != nil {
 				return WrapError("failed to unrepost", err)
+			}
+
+			if outfmt.IsJSON(ctx) {
+				return outfmt.WriteJSONTo(io.Out, map[string]any{
+					"ok":        true,
+					"repost_id": repostID,
+					"deleted":   true,
+					"action":    "unrepost",
+				}, outfmt.GetQuery(ctx))
 			}
 
 			f.UI(ctx).Success("Repost removed successfully")
@@ -733,8 +793,9 @@ func newPostsGhostListCmd(f *Factory) *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
-		Use:   "ghost-list",
-		Short: "List ghost posts",
+		Use:     "ghost-list",
+		Aliases: []string{"ghosts"},
+		Short:   "List ghost posts",
 		Long: `List ghost posts from the authenticated user.
 
 Ghost posts are text-only posts that automatically expire after 24 hours.

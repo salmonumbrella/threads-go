@@ -378,12 +378,17 @@ All commands support these flags:
 
 - `--account <name>`, `-a` - Account to use (overrides THREADS_ACCOUNT)
 - `--output <format>`, `-o` - Output format: `text` or `json` (default: text)
+- `--json` - Shortcut for `--output json`
 - `--query <expr>`, `-q` - JQ filter expression for JSON output
 - `--yes`, `-y` - Skip confirmation prompts (useful for scripts and automation)
-- `--limit <n>` - Limit number of results returned
+- `--no-prompt` - Alias for `--yes`
+- `--color <mode>` - Color output: `auto`, `always`, `never`
+- `--no-color` - Shortcut for `--color never`
 - `--debug` - Enable debug output
 - `--help` - Show help for any command
 - `--version` - Show version information
+
+Note: many list-style commands also support `--limit` (and sometimes `--cursor`) as command-specific flags.
 
 ## Shell Completions
 
