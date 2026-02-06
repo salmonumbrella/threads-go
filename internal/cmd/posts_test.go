@@ -119,6 +119,13 @@ func TestPostsListCmd_Structure(t *testing.T) {
 	if cmd.RunE == nil {
 		t.Error("expected RunE to be set")
 	}
+
+	// Pagination ergonomics
+	for _, flag := range []string{"limit", "cursor", "all", "no-hints"} {
+		if cmd.Flag(flag) == nil {
+			t.Errorf("missing flag: %s", flag)
+		}
+	}
 }
 
 func TestPostsDeleteCmd_Structure(t *testing.T) {
@@ -828,6 +835,93 @@ func TestPostsRepost_EmitID_Text(t *testing.T) {
 	out := io.Out.(*bytes.Buffer).String()
 	if out != "rp1\n" {
 		t.Fatalf("expected repost id rp1, got %q", out)
+	}
+}
+
+func TestPostsList_All_JSONL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/refresh_access_token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		}
+
+		if r.URL.Path != "/12345/threads" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		after := r.URL.Query().Get("after")
+		w.Header().Set("Content-Type", "application/json")
+		switch after {
+		case "":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{
+					{
+						"id":                 "p1",
+						"permalink":          "https://www.threads.net/t/p1",
+						"timestamp":          time.Now().UTC().Format(time.RFC3339),
+						"username":           "testuser",
+						"media_product_type": "THREADS",
+						"is_reply":           false,
+					},
+					{
+						"id":                 "p2",
+						"permalink":          "https://www.threads.net/t/p2",
+						"timestamp":          time.Now().UTC().Format(time.RFC3339),
+						"username":           "testuser",
+						"media_product_type": "THREADS",
+						"is_reply":           false,
+					},
+				},
+				"paging": map[string]any{"cursors": map[string]any{"after": "c2"}},
+			})
+		case "c2":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": []map[string]any{
+					{
+						"id":                 "p3",
+						"permalink":          "https://www.threads.net/t/p3",
+						"timestamp":          time.Now().UTC().Format(time.RFC3339),
+						"username":           "testuser",
+						"media_product_type": "THREADS",
+						"is_reply":           false,
+					},
+				},
+				"paging": map[string]any{"cursors": map[string]any{}},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":   []map[string]any{},
+				"paging": map[string]any{},
+			})
+		}
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "jsonl")
+
+	cmd := newPostsListCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"--all"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("posts list --all -o jsonl failed: %v", err)
+	}
+
+	out := io.Out.(*bytes.Buffer).String()
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 jsonl lines, got %d: %q", len(lines), out)
+	}
+	if !strings.Contains(lines[0], `"id":"p1"`) || !strings.Contains(lines[2], `"id":"p3"`) {
+		t.Fatalf("unexpected output: %q", out)
 	}
 }
 

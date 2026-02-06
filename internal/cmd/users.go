@@ -246,6 +246,8 @@ func printPublicUserText(ctx context.Context, f *Factory, u *api.PublicUser) {
 func newUsersMentionsCmd(f *Factory) *cobra.Command {
 	var limit int
 	var cursor string
+	var all bool
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:   "mentions",
@@ -268,14 +270,80 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 				After: cursor,
 			}
 
+			io := iocontext.GetIO(ctx)
+			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			if all {
+				pageCursor := cursor
+				var allPosts []api.Post
+				var allRows [][]string
+
+				for {
+					opts.After = pageCursor
+					result, errPage := client.GetUserMentions(ctx, api.UserID(creds.UserID), opts)
+					if errPage != nil {
+						return WrapError("failed to get mentions", errPage)
+					}
+
+					next := pagingAfter(result.Paging)
+
+					if outfmt.IsJSONL(ctx) {
+						if errOut := out.Output(result.Data); errOut != nil {
+							return errOut
+						}
+					} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+						allPosts = append(allPosts, result.Data...)
+					} else {
+						for _, post := range result.Data {
+							text := post.Text
+							if len(text) > 50 {
+								text = text[:47] + "..."
+							}
+							allRows = append(allRows, []string{
+								post.ID,
+								"@" + post.Username,
+								text,
+								post.Timestamp.Format("2006-01-02 15:04"),
+							})
+						}
+					}
+
+					if next == "" || next == pageCursor || len(result.Data) == 0 {
+						break
+					}
+					pageCursor = next
+				}
+
+				if outfmt.GetFormat(ctx) == outfmt.JSON {
+					return out.Output(map[string]any{
+						"data":   allPosts,
+						"paging": map[string]any{"after": pageCursor},
+					})
+				}
+				if outfmt.GetFormat(ctx) == outfmt.Text {
+					if len(allRows) == 0 {
+						out.Empty("No mentions found")
+						return nil
+					}
+					return out.Table([]string{"ID", "FROM", "TEXT", "TIMESTAMP"}, allRows, []outfmt.ColumnType{
+						outfmt.ColumnID,
+						outfmt.ColumnPlain,
+						outfmt.ColumnPlain,
+						outfmt.ColumnDate,
+					})
+				}
+				return nil
+			}
+
 			result, err := client.GetUserMentions(ctx, api.UserID(creds.UserID), opts)
 			if err != nil {
 				return WrapError("failed to get mentions", err)
 			}
 
-			// JSON output
-			io := iocontext.GetIO(ctx)
-			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+			next := pagingAfter(result.Paging)
+			if !noHints && next != "" && io.ErrOut != nil && (outfmt.IsJSONL(ctx) || outfmt.GetFormat(ctx) == outfmt.Text) {
+				fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+			}
+
 			if outfmt.IsJSONL(ctx) {
 				return out.Output(result.Data)
 			}
@@ -314,6 +382,8 @@ func newUsersMentionsCmd(f *Factory) *cobra.Command {
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum results")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 
 	return cmd
 }

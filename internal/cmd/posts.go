@@ -372,6 +372,9 @@ func runPostsGet(cmd *cobra.Command, f *Factory, postID string) error {
 
 func newPostsListCmd(f *Factory) *cobra.Command {
 	var limit int
+	var cursor string
+	var all bool
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:     "list",
@@ -389,15 +392,18 @@ Examples:
   # Output as JSON
   threads posts list --output json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPostsList(cmd, f, limit)
+			return runPostsList(cmd, f, limit, cursor, all, noHints)
 		},
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of results")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor for next page")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 	return cmd
 }
 
-func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
+func runPostsList(cmd *cobra.Command, f *Factory, limit int, cursor string, all bool, noHints bool) error {
 	ctx := cmd.Context()
 
 	client, err := f.Client(ctx)
@@ -411,56 +417,89 @@ func runPostsList(cmd *cobra.Command, f *Factory, limit int) error {
 	}
 
 	opts := &api.PaginationOptions{}
-	if limit > 0 {
-		opts.Limit = limit
-	}
-
-	postsResp, err := client.GetUserPosts(ctx, api.UserID(creds.UserID), opts)
-	if err != nil {
-		return WrapError("failed to list posts", err)
-	}
-
-	posts := postsResp.Data
-	if limit > 0 && len(posts) > limit {
-		posts = posts[:limit]
-	}
 
 	io := iocontext.GetIO(ctx)
 	out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-	if outfmt.IsJSONL(ctx) {
-		return out.Output(posts)
+	emitHint := func(next string) {
+		if noHints || next == "" {
+			return
+		}
+		// Hints go to stderr and are suppressed by default in agent pipelines if desired.
+		if io.ErrOut != nil {
+			fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+		}
+	}
+
+	pageCursor := cursor
+	var allPosts []api.Post
+	firstPage := true
+
+	if outfmt.GetFormat(ctx) == outfmt.Text {
+		out.Header("ID", "TYPE", "TEXT", "TIMESTAMP")
+	}
+
+	for {
+		opts.Limit = limit
+		opts.After = pageCursor
+
+		postsResp, errList := client.GetUserPosts(ctx, api.UserID(creds.UserID), opts)
+		if errList != nil {
+			return WrapError("failed to list posts", errList)
+		}
+		posts := postsResp.Data
+		next := pagingAfter(postsResp.Paging)
+
+		if outfmt.IsJSONL(ctx) {
+			if errOut := out.Output(posts); errOut != nil {
+				return errOut
+			}
+		} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+			allPosts = append(allPosts, posts...)
+		} else {
+			for _, post := range posts {
+				text := strings.ReplaceAll(post.Text, "\n", " ")
+				if len(text) > 40 {
+					text = text[:40] + "..."
+				}
+
+				out.Row(
+					post.ID,
+					post.MediaType,
+					text,
+					post.Timestamp.Format("2006-01-02 15:04"),
+				)
+			}
+		}
+
+		if !all {
+			if firstPage && len(posts) == 0 {
+				f.UI(ctx).Info("No posts found")
+				return nil
+			}
+			// Only show a hint for single-page runs.
+			emitHint(next)
+			break
+		}
+
+		// Stop when there is no next cursor or the API stops advancing.
+		if next == "" || next == pageCursor || len(posts) == 0 {
+			break
+		}
+		pageCursor = next
+		firstPage = false
+	}
+
+	if outfmt.GetFormat(ctx) == outfmt.Text {
+		out.Flush()
 	}
 	if outfmt.GetFormat(ctx) == outfmt.JSON {
 		return out.Output(map[string]any{
-			"posts":  posts,
-			"paging": postsResp.Paging,
+			"posts":  allPosts,
+			"paging": map[string]any{"after": pageCursor},
 		})
 	}
-
-	if len(posts) == 0 {
-		f.UI(ctx).Info("No posts found")
-		return nil
-	}
-
-	fmtr := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-	fmtr.Header("ID", "TYPE", "TEXT", "TIMESTAMP")
-
-	for _, post := range posts {
-		text := strings.ReplaceAll(post.Text, "\n", " ")
-		if len(text) > 40 {
-			text = text[:40] + "..."
-		}
-
-		fmtr.Row(
-			post.ID,
-			post.MediaType,
-			text,
-			post.Timestamp.Format("2006-01-02 15:04"),
-		)
-	}
-	fmtr.Flush()
-
 	return nil
+
 }
 
 func newPostsDeleteCmd(f *Factory) *cobra.Command {
@@ -888,6 +927,9 @@ Requires confirmation unless --yes flag is provided.`,
 
 func newPostsGhostListCmd(f *Factory) *cobra.Command {
 	var limit int
+	var cursor string
+	var all bool
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:     "ghost-list",
@@ -908,15 +950,18 @@ Examples:
   # Output as JSON
   threads posts ghost-list --output json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPostsGhostList(cmd, f, limit)
+			return runPostsGhostList(cmd, f, limit, cursor, all, noHints)
 		},
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of results")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor for next page")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 	return cmd
 }
 
-func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int) error {
+func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int, cursor string, all bool, noHints bool) error {
 	ctx := cmd.Context()
 
 	client, err := f.Client(ctx)
@@ -930,67 +975,96 @@ func runPostsGhostList(cmd *cobra.Command, f *Factory, limit int) error {
 	}
 
 	opts := &api.PaginationOptions{}
-	if limit > 0 {
-		opts.Limit = limit
-	}
-
-	postsResp, err := client.GetUserGhostPosts(ctx, api.UserID(creds.UserID), opts)
-	if err != nil {
-		return WrapError("failed to list ghost posts", err)
-	}
-
-	posts := postsResp.Data
-	if limit > 0 && len(posts) > limit {
-		posts = posts[:limit]
-	}
 
 	io := iocontext.GetIO(ctx)
 	out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-	if outfmt.IsJSONL(ctx) {
-		return out.Output(posts)
+	emitHint := func(next string) {
+		if noHints || next == "" {
+			return
+		}
+		if io.ErrOut != nil {
+			fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+		}
+	}
+
+	pageCursor := cursor
+	var allPosts []api.Post
+	firstPage := true
+
+	if outfmt.GetFormat(ctx) == outfmt.Text {
+		out.Header("ID", "TEXT", "EXPIRES", "STATUS")
+	}
+
+	for {
+		opts.Limit = limit
+		opts.After = pageCursor
+
+		postsResp, errList := client.GetUserGhostPosts(ctx, api.UserID(creds.UserID), opts)
+		if errList != nil {
+			return WrapError("failed to list ghost posts", errList)
+		}
+		posts := postsResp.Data
+		next := pagingAfter(postsResp.Paging)
+
+		if outfmt.IsJSONL(ctx) {
+			if errOut := out.Output(posts); errOut != nil {
+				return errOut
+			}
+		} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+			allPosts = append(allPosts, posts...)
+		} else {
+			for _, post := range posts {
+				text := strings.ReplaceAll(post.Text, "\n", " ")
+				if len(text) > 40 {
+					text = text[:40] + "..."
+				}
+
+				expires := "N/A"
+				if !post.GhostPostExpirationTimestamp.IsZero() {
+					absTime := post.GhostPostExpirationTimestamp.Format("2006-01-02 15:04")
+					relTime := ui.FormatRelativeTime(post.GhostPostExpirationTimestamp.Time)
+					expires = fmt.Sprintf("%s (%s)", absTime, relTime)
+				}
+
+				status := post.GhostPostStatus
+				if status == "" {
+					status = "active"
+				}
+
+				out.Row(
+					post.ID,
+					text,
+					expires,
+					status,
+				)
+			}
+		}
+
+		if !all {
+			if firstPage && len(posts) == 0 {
+				f.UI(ctx).Info("No ghost posts found")
+				return nil
+			}
+			emitHint(next)
+			break
+		}
+
+		if next == "" || next == pageCursor || len(posts) == 0 {
+			break
+		}
+		pageCursor = next
+		firstPage = false
+	}
+
+	if outfmt.GetFormat(ctx) == outfmt.Text {
+		out.Flush()
 	}
 	if outfmt.GetFormat(ctx) == outfmt.JSON {
 		return out.Output(map[string]any{
-			"posts":  posts,
-			"paging": postsResp.Paging,
+			"posts":  allPosts,
+			"paging": map[string]any{"after": pageCursor},
 		})
 	}
-
-	if len(posts) == 0 {
-		f.UI(ctx).Info("No ghost posts found")
-		return nil
-	}
-
-	fmtr := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-	fmtr.Header("ID", "TEXT", "EXPIRES", "STATUS")
-
-	for _, post := range posts {
-		text := strings.ReplaceAll(post.Text, "\n", " ")
-		if len(text) > 40 {
-			text = text[:40] + "..."
-		}
-
-		expires := "N/A"
-		if !post.GhostPostExpirationTimestamp.IsZero() {
-			absTime := post.GhostPostExpirationTimestamp.Format("2006-01-02 15:04")
-			relTime := ui.FormatRelativeTime(post.GhostPostExpirationTimestamp.Time)
-			expires = fmt.Sprintf("%s (%s)", absTime, relTime)
-		}
-
-		status := post.GhostPostStatus
-		if status == "" {
-			status = "active"
-		}
-
-		fmtr.Row(
-			post.ID,
-			text,
-			expires,
-			status,
-		)
-	}
-	fmtr.Flush()
-
 	return nil
 }
 

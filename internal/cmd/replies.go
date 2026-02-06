@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,6 +31,9 @@ func NewRepliesCmd(f *Factory) *cobra.Command {
 
 func newRepliesListCmd(f *Factory) *cobra.Command {
 	var limit int
+	var cursor string
+	var all bool
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:     "list [post-id]",
@@ -55,51 +59,125 @@ func newRepliesListCmd(f *Factory) *cobra.Command {
 			if limit > 0 {
 				opts.Limit = limit
 			}
-
-			replies, err := client.GetReplies(ctx, api.PostID(postID), opts)
-			if err != nil {
-				return WrapError("failed to get replies", err)
+			if cursor != "" {
+				opts.After = cursor
 			}
 
 			io := iocontext.GetIO(ctx)
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-			if outfmt.IsJSONL(ctx) {
-				return out.Output(replies.Data)
+			if !all {
+				replies, errList := client.GetReplies(ctx, api.PostID(postID), opts)
+				if errList != nil {
+					return WrapError("failed to get replies", errList)
+				}
+
+				next := pagingAfter(replies.Paging)
+				if !noHints && next != "" && io.ErrOut != nil {
+					fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+				}
+
+				if outfmt.IsJSONL(ctx) {
+					return out.Output(replies.Data)
+				}
+				if outfmt.GetFormat(ctx) == outfmt.JSON {
+					return out.Output(replies)
+				}
+
+				if len(replies.Data) == 0 {
+					f.UI(ctx).Info("No replies found for post %s", postID)
+					return nil
+				}
+
+				headers := []string{"ID", "FROM", "TEXT", "DATE"}
+				rows := make([][]string, len(replies.Data))
+				for i, reply := range replies.Data {
+					text := strings.ReplaceAll(reply.Text, "\n", " ")
+					if len(text) > 50 {
+						text = text[:47] + "..."
+					}
+					rows[i] = []string{
+						reply.ID,
+						"@" + reply.Username,
+						text,
+						reply.Timestamp.Format("2006-01-02 15:04"),
+					}
+				}
+
+				return out.Table(headers, rows, []outfmt.ColumnType{
+					outfmt.ColumnID,
+					outfmt.ColumnPlain,
+					outfmt.ColumnPlain,
+					outfmt.ColumnDate,
+				})
 			}
+
+			// --all: auto-paginate.
+			pageCursor := cursor
+			var allReplies []api.Post
+			var allRows [][]string
+
+			for {
+				opts.After = pageCursor
+				replies, errList := client.GetReplies(ctx, api.PostID(postID), opts)
+				if errList != nil {
+					return WrapError("failed to get replies", errList)
+				}
+
+				next := pagingAfter(replies.Paging)
+
+				if outfmt.IsJSONL(ctx) {
+					if errOut := out.Output(replies.Data); errOut != nil {
+						return errOut
+					}
+				} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+					allReplies = append(allReplies, replies.Data...)
+				} else {
+					for _, reply := range replies.Data {
+						text := strings.ReplaceAll(reply.Text, "\n", " ")
+						if len(text) > 50 {
+							text = text[:47] + "..."
+						}
+						allRows = append(allRows, []string{
+							reply.ID,
+							"@" + reply.Username,
+							text,
+							reply.Timestamp.Format("2006-01-02 15:04"),
+						})
+					}
+				}
+
+				if next == "" || next == pageCursor || len(replies.Data) == 0 {
+					break
+				}
+				pageCursor = next
+			}
+
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(replies)
+				return out.Output(map[string]any{
+					"data":   allReplies,
+					"paging": map[string]any{"after": pageCursor},
+				})
 			}
-
-			if len(replies.Data) == 0 {
-				f.UI(ctx).Info("No replies found for post %s", postID)
-				return nil
-			}
-
-			headers := []string{"ID", "FROM", "TEXT", "DATE"}
-			rows := make([][]string, len(replies.Data))
-			for i, reply := range replies.Data {
-				text := strings.ReplaceAll(reply.Text, "\n", " ")
-				if len(text) > 50 {
-					text = text[:47] + "..."
+			if outfmt.GetFormat(ctx) == outfmt.Text {
+				if len(allRows) == 0 {
+					f.UI(ctx).Info("No replies found for post %s", postID)
+					return nil
 				}
-				rows[i] = []string{
-					reply.ID,
-					"@" + reply.Username,
-					text,
-					reply.Timestamp.Format("2006-01-02 15:04"),
-				}
+				return out.Table([]string{"ID", "FROM", "TEXT", "DATE"}, allRows, []outfmt.ColumnType{
+					outfmt.ColumnID,
+					outfmt.ColumnPlain,
+					outfmt.ColumnPlain,
+					outfmt.ColumnDate,
+				})
 			}
-
-			return out.Table(headers, rows, []outfmt.ColumnType{
-				outfmt.ColumnID,
-				outfmt.ColumnPlain,
-				outfmt.ColumnPlain,
-				outfmt.ColumnDate,
-			})
+			return nil
 		},
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of replies to return")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor for next page")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 	return cmd
 }
 
@@ -267,6 +345,9 @@ func newRepliesUnhideCmd(f *Factory) *cobra.Command {
 
 func newRepliesConversationCmd(f *Factory) *cobra.Command {
 	var limit int
+	var cursor string
+	var all bool
+	var noHints bool
 
 	cmd := &cobra.Command{
 		Use:     "conversation [post-id]",
@@ -292,50 +373,124 @@ func newRepliesConversationCmd(f *Factory) *cobra.Command {
 			if limit > 0 {
 				opts.Limit = limit
 			}
-
-			result, err := client.GetConversation(ctx, api.PostID(postID), opts)
-			if err != nil {
-				return WrapError("failed to get conversation", err)
+			if cursor != "" {
+				opts.After = cursor
 			}
 
 			io := iocontext.GetIO(ctx)
 			out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
-			if outfmt.IsJSONL(ctx) {
-				return out.Output(result.Data)
+			if !all {
+				result, errConv := client.GetConversation(ctx, api.PostID(postID), opts)
+				if errConv != nil {
+					return WrapError("failed to get conversation", errConv)
+				}
+
+				next := pagingAfter(result.Paging)
+				if !noHints && next != "" && io.ErrOut != nil {
+					fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+				}
+
+				if outfmt.IsJSONL(ctx) {
+					return out.Output(result.Data)
+				}
+				if outfmt.GetFormat(ctx) == outfmt.JSON {
+					return out.Output(result)
+				}
+
+				if len(result.Data) == 0 {
+					f.UI(ctx).Info("No conversation found for post %s", postID)
+					return nil
+				}
+
+				headers := []string{"ID", "FROM", "TEXT", "DATE"}
+				rows := make([][]string, len(result.Data))
+				for i, reply := range result.Data {
+					text := strings.ReplaceAll(reply.Text, "\n", " ")
+					if len(text) > 50 {
+						text = text[:47] + "..."
+					}
+					rows[i] = []string{
+						reply.ID,
+						"@" + reply.Username,
+						text,
+						reply.Timestamp.Format("2006-01-02 15:04"),
+					}
+				}
+
+				return out.Table(headers, rows, []outfmt.ColumnType{
+					outfmt.ColumnID,
+					outfmt.ColumnPlain,
+					outfmt.ColumnPlain,
+					outfmt.ColumnDate,
+				})
 			}
+
+			// --all: auto-paginate.
+			pageCursor := cursor
+			var allReplies []api.Post
+			var allRows [][]string
+
+			for {
+				opts.After = pageCursor
+				result, errConv := client.GetConversation(ctx, api.PostID(postID), opts)
+				if errConv != nil {
+					return WrapError("failed to get conversation", errConv)
+				}
+
+				next := pagingAfter(result.Paging)
+
+				if outfmt.IsJSONL(ctx) {
+					if errOut := out.Output(result.Data); errOut != nil {
+						return errOut
+					}
+				} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+					allReplies = append(allReplies, result.Data...)
+				} else {
+					for _, reply := range result.Data {
+						text := strings.ReplaceAll(reply.Text, "\n", " ")
+						if len(text) > 50 {
+							text = text[:47] + "..."
+						}
+						allRows = append(allRows, []string{
+							reply.ID,
+							"@" + reply.Username,
+							text,
+							reply.Timestamp.Format("2006-01-02 15:04"),
+						})
+					}
+				}
+
+				if next == "" || next == pageCursor || len(result.Data) == 0 {
+					break
+				}
+				pageCursor = next
+			}
+
 			if outfmt.GetFormat(ctx) == outfmt.JSON {
-				return out.Output(result)
+				return out.Output(map[string]any{
+					"data":   allReplies,
+					"paging": map[string]any{"after": pageCursor},
+				})
 			}
-
-			if len(result.Data) == 0 {
-				f.UI(ctx).Info("No conversation found for post %s", postID)
-				return nil
-			}
-
-			headers := []string{"ID", "FROM", "TEXT", "DATE"}
-			rows := make([][]string, len(result.Data))
-			for i, reply := range result.Data {
-				text := strings.ReplaceAll(reply.Text, "\n", " ")
-				if len(text) > 50 {
-					text = text[:47] + "..."
+			if outfmt.GetFormat(ctx) == outfmt.Text {
+				if len(allRows) == 0 {
+					f.UI(ctx).Info("No conversation found for post %s", postID)
+					return nil
 				}
-				rows[i] = []string{
-					reply.ID,
-					"@" + reply.Username,
-					text,
-					reply.Timestamp.Format("2006-01-02 15:04"),
-				}
+				return out.Table([]string{"ID", "FROM", "TEXT", "DATE"}, allRows, []outfmt.ColumnType{
+					outfmt.ColumnID,
+					outfmt.ColumnPlain,
+					outfmt.ColumnPlain,
+					outfmt.ColumnDate,
+				})
 			}
-
-			return out.Table(headers, rows, []outfmt.ColumnType{
-				outfmt.ColumnID,
-				outfmt.ColumnPlain,
-				outfmt.ColumnPlain,
-				outfmt.ColumnDate,
-			})
+			return nil
 		},
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of posts to return")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "Pagination cursor for next page")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 	return cmd
 }

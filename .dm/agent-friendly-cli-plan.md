@@ -70,3 +70,8 @@ Goal: make `threads` maximally usable by an automated agent. That means fewer ro
 3. JSONL for list-style commands:
    - Add `--output jsonl` (one JSON object per line; empty list = 0 lines).
    - List-style commands emit items in JSONL mode (not wrapper objects).
+
+## Phase 8: Pagination Ergonomics (Completed)
+
+- Add `--all` to auto-paginate for list-style commands that support cursors.
+- Add `--no-hints` to suppress pagination hints on stderr.

@@ -86,6 +86,16 @@ func TestRepliesListCmd_Flags(t *testing.T) {
 	if limitFlag.DefValue != "25" {
 		t.Errorf("expected limit default=25, got %s", limitFlag.DefValue)
 	}
+
+	if cmd.Flag("cursor") == nil {
+		t.Fatal("missing cursor flag")
+	}
+	if cmd.Flag("all") == nil {
+		t.Fatal("missing all flag")
+	}
+	if cmd.Flag("no-hints") == nil {
+		t.Fatal("missing no-hints flag")
+	}
 }
 
 func TestRepliesCreateCmd_Structure(t *testing.T) {
@@ -188,6 +198,16 @@ func TestRepliesConversationCmd_Flags(t *testing.T) {
 
 	if limitFlag.DefValue != "25" {
 		t.Errorf("expected limit default=25, got %s", limitFlag.DefValue)
+	}
+
+	if cmd.Flag("cursor") == nil {
+		t.Fatal("missing cursor flag")
+	}
+	if cmd.Flag("all") == nil {
+		t.Fatal("missing all flag")
+	}
+	if cmd.Flag("no-hints") == nil {
+		t.Fatal("missing no-hints flag")
 	}
 }
 

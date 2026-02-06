@@ -392,6 +392,16 @@ Note: many list-style commands also support `--limit` (and sometimes `--cursor`)
 
 Tip: `--output jsonl` is useful for list-style commands, emitting one JSON object per line for easy streaming and piping.
 
+Auto-pagination:
+
+```bash
+# Stream all pages (one JSON object per line)
+threads posts list --all -o jsonl
+
+# Stream all search results
+threads search "coffee" --all -o jsonl
+```
+
 ## Agent Discovery
 
 To make agents and scripts more reliable, `threads` includes a JSON help command:

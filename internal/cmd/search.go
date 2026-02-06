@@ -24,6 +24,8 @@ func NewSearchCmd(f *Factory) *cobra.Command {
 		searchType string
 		best       bool
 		emit       string
+		all        bool
+		noHints    bool
 	)
 
 	cmd := &cobra.Command{
@@ -48,6 +50,13 @@ Results can be sorted by popularity (top) or recency (recent).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
 			ctx := cmd.Context()
+
+			if best && all {
+				return &UserFriendlyError{
+					Message:    "Cannot combine --best and --all",
+					Suggestion: "Use --best for a single result, or --all to paginate all results",
+				}
+			}
 
 			if best {
 				emit = strings.ToLower(strings.TrimSpace(emit))
@@ -185,6 +194,77 @@ Results can be sorted by popularity (top) or recency (recent).`,
 				return nil
 			}
 
+			if all {
+				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
+				pageCursor := cursor
+				var allPosts []api.Post
+				var allRows [][]string
+
+				for {
+					opts.After = pageCursor
+					page, errPage := client.KeywordSearch(ctx, query, opts)
+					if errPage != nil {
+						return WrapError("search failed", errPage)
+					}
+
+					next := pagingAfter(page.Paging)
+
+					if outfmt.IsJSONL(ctx) {
+						if errOut := out.Output(page.Data); errOut != nil {
+							return errOut
+						}
+					} else if outfmt.GetFormat(ctx) == outfmt.JSON {
+						allPosts = append(allPosts, page.Data...)
+					} else {
+						for _, post := range page.Data {
+							text := post.Text
+							if len(text) > 50 {
+								text = text[:47] + "..."
+							}
+							text = strings.ReplaceAll(text, "\n", " ")
+							allRows = append(allRows, []string{
+								post.ID,
+								"@" + post.Username,
+								text,
+								post.MediaType,
+								post.Timestamp.Format("2006-01-02"),
+							})
+						}
+					}
+
+					if next == "" || next == pageCursor || len(page.Data) == 0 {
+						break
+					}
+					pageCursor = next
+				}
+
+				if outfmt.GetFormat(ctx) == outfmt.JSON {
+					return out.Output(map[string]any{
+						"data":   allPosts,
+						"paging": map[string]any{"after": pageCursor},
+					})
+				}
+				if outfmt.GetFormat(ctx) == outfmt.Text {
+					if len(allRows) == 0 {
+						out.Empty("No results found")
+						return nil
+					}
+					return out.Table([]string{"ID", "USER", "TEXT", "TYPE", "DATE"}, allRows, []outfmt.ColumnType{
+						outfmt.ColumnID,
+						outfmt.ColumnPlain,
+						outfmt.ColumnPlain,
+						outfmt.ColumnStatus,
+						outfmt.ColumnDate,
+					})
+				}
+				return nil
+			}
+
+			next := pagingAfter(result.Paging)
+			if !noHints && next != "" && io.ErrOut != nil && (outfmt.IsJSONL(ctx) || outfmt.GetFormat(ctx) == outfmt.Text) {
+				fmt.Fprintf(io.ErrOut, "\nMore results available. Use --cursor %s to see next page.\n", next) //nolint:errcheck // Best-effort output
+			}
+
 			if outfmt.IsJSONL(ctx) {
 				out := outfmt.FromContext(ctx, outfmt.WithWriter(io.Out))
 				return out.Output(result.Data)
@@ -238,6 +318,8 @@ Results can be sorted by popularity (top) or recency (recent).`,
 	cmd.Flags().StringVar(&searchType, "type", "top", "Result type: top (default) or recent")
 	cmd.Flags().BoolVar(&best, "best", false, "Auto-select the best result (non-interactive)")
 	cmd.Flags().StringVar(&emit, "emit", "json", "When using --best, emit: json|id|url")
+	cmd.Flags().BoolVar(&all, "all", false, "Fetch all pages (auto-paginate)")
+	cmd.Flags().BoolVar(&noHints, "no-hints", false, "Suppress pagination hints on stderr")
 
 	return cmd
 }
