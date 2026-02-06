@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -59,7 +60,19 @@ func newUsersGetCmd(f *Factory) *cobra.Command {
 		Long:    `Retrieve user profile information by their user ID.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			userID, err := normalizeIDArg(args[0], "user")
+			raw := strings.TrimSpace(args[0])
+
+			// Desire path: allow @username and Threads profile URLs by delegating to lookup.
+			if strings.HasPrefix(raw, "@") {
+				return runUsersLookup(cmd, f, raw)
+			}
+			if strings.Contains(raw, "://") {
+				if username, ok := extractUsernameFromURL(raw); ok {
+					return runUsersLookup(cmd, f, username)
+				}
+			}
+
+			userID, err := normalizeIDArg(raw, "user")
 			if err != nil {
 				return err
 			}

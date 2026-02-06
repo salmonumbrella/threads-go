@@ -22,6 +22,8 @@ func NewSearchCmd(f *Factory) *cobra.Command {
 		until      string
 		mode       string
 		searchType string
+		best       bool
+		emit       string
 	)
 
 	cmd := &cobra.Command{
@@ -46,6 +48,21 @@ Results can be sorted by popularity (top) or recency (recent).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
 			ctx := cmd.Context()
+
+			if best {
+				emit = strings.ToLower(strings.TrimSpace(emit))
+				if emit == "" {
+					emit = "json"
+				}
+				switch emit {
+				case "json", "id", "url":
+				default:
+					return &UserFriendlyError{
+						Message:    fmt.Sprintf("Invalid --emit value: %s", emit),
+						Suggestion: "Valid values are: json, id, url",
+					}
+				}
+			}
 
 			client, err := f.Client(ctx)
 			if err != nil {
@@ -115,6 +132,58 @@ Results can be sorted by popularity (top) or recency (recent).`,
 			}
 
 			io := iocontext.GetIO(ctx)
+
+			if best {
+				if len(result.Data) == 0 {
+					return &UserFriendlyError{
+						Message:    "No results found",
+						Suggestion: "Try a different query or broaden your search",
+					}
+				}
+
+				item := result.Data[0]
+
+				// When best+emit is requested, allow emitting a scalar in text mode for easy chaining.
+				if !outfmt.IsJSON(ctx) {
+					switch emit {
+					case "id":
+						fmt.Fprintln(io.Out, item.ID) //nolint:errcheck // Best-effort output
+						return nil
+					case "url":
+						if strings.TrimSpace(item.Permalink) == "" {
+							return &UserFriendlyError{
+								Message:    "Cannot emit url: permalink is empty",
+								Suggestion: "Use --emit id or --emit json",
+							}
+						}
+						fmt.Fprintln(io.Out, item.Permalink) //nolint:errcheck // Best-effort output
+						return nil
+					}
+				}
+
+				// JSON mode: emit stable wrapper.
+				if outfmt.IsJSON(ctx) {
+					switch emit {
+					case "id":
+						return outfmt.WriteJSONTo(io.Out, map[string]any{"id": item.ID}, outfmt.GetQuery(ctx))
+					case "url":
+						return outfmt.WriteJSONTo(io.Out, map[string]any{"url": item.Permalink}, outfmt.GetQuery(ctx))
+					default:
+						return outfmt.WriteJSONTo(io.Out, map[string]any{
+							"id":   item.ID,
+							"item": item,
+						}, outfmt.GetQuery(ctx))
+					}
+				}
+
+				// Text mode default.
+				fmt.Fprintf(io.Out, "%s\n", item.ID) //nolint:errcheck // Best-effort output
+				if strings.TrimSpace(item.Permalink) != "" {
+					fmt.Fprintf(io.Out, "%s\n", item.Permalink) //nolint:errcheck // Best-effort output
+				}
+				return nil
+			}
+
 			if outfmt.IsJSON(ctx) {
 				return outfmt.WriteJSONTo(io.Out, result, outfmt.GetQuery(ctx))
 			}
@@ -161,6 +230,8 @@ Results can be sorted by popularity (top) or recency (recent).`,
 	cmd.Flags().StringVar(&until, "until", "", "Posts before date (YYYY-MM-DD)")
 	cmd.Flags().StringVar(&mode, "mode", "keyword", "Search mode: keyword (default) or tag")
 	cmd.Flags().StringVar(&searchType, "type", "top", "Result type: top (default) or recent")
+	cmd.Flags().BoolVar(&best, "best", false, "Auto-select the best result (non-interactive)")
+	cmd.Flags().StringVar(&emit, "emit", "json", "When using --best, emit: json|id|url")
 
 	return cmd
 }

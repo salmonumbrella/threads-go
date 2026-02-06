@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -21,6 +22,20 @@ func normalizeIDArg(input string, expectedKind string) (string, error) {
 
 	// Common shorthand: "#123" means "123".
 	s = strings.TrimPrefix(s, "#")
+
+	// Pasted URLs (permalinks): try to extract a post/reply/user ID.
+	// We only attempt URL extraction when an expected kind is provided.
+	if expectedKind != "" && strings.Contains(s, "://") {
+		id, kind, ok := extractIDFromURL(s)
+		if ok {
+			// Map URL kind to our expected kinds.
+			if kind != "" && kind != expectedKind {
+				return "", fmt.Errorf("invalid %s ID: URL is for %s, expected %s", expectedKind, kind, expectedKind)
+			}
+			return id, nil
+		}
+		return "", fmt.Errorf("invalid %s ID: could not extract ID from URL", expectedKind)
+	}
 
 	if expectedKind != "" {
 		if prefix, rest, ok := strings.Cut(s, ":"); ok {
@@ -60,4 +75,77 @@ func normalizeIDPrefix(prefix string) string {
 		return "user"
 	}
 	return ""
+}
+
+// extractIDFromURL extracts a resource ID from a pasted URL.
+// It supports common Threads-like patterns:
+// - https://.../t/<id>
+// - https://.../@<user>/post/<id>
+// - https://.../post/<id>
+//
+// It returns (id, kind, ok). kind is currently "post" (and may be extended later).
+func extractIDFromURL(raw string) (string, string, bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", "", false
+	}
+
+	// Query param fallbacks
+	q := u.Query()
+	for _, key := range []string{"post_id", "reply_id", "id"} {
+		if v := strings.TrimSpace(q.Get(key)); v != "" {
+			return v, "post", true
+		}
+	}
+
+	// Path scanning
+	path := strings.Trim(u.Path, "/")
+	if path == "" {
+		return "", "", false
+	}
+	segs := strings.Split(path, "/")
+
+	// Common: /t/<id>
+	for i := 0; i < len(segs)-1; i++ {
+		if segs[i] == "t" || segs[i] == "post" || segs[i] == "p" {
+			id := strings.TrimSpace(segs[i+1])
+			if id != "" {
+				return id, "post", true
+			}
+		}
+	}
+
+	// Threads profile style: /@user/post/<id>
+	for i := 0; i < len(segs)-2; i++ {
+		if strings.HasPrefix(segs[i], "@") && (segs[i+1] == "post" || segs[i+1] == "p") {
+			id := strings.TrimSpace(segs[i+2])
+			if id != "" {
+				return id, "post", true
+			}
+		}
+	}
+
+	return "", "", false
+}
+
+// extractUsernameFromURL extracts a Threads username from a profile URL like:
+// - https://www.threads.net/@username
+// - https://www.threads.net/@username/post/<id>
+func extractUsernameFromURL(raw string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", false
+	}
+	path := strings.Trim(u.Path, "/")
+	if path == "" {
+		return "", false
+	}
+	segs := strings.Split(path, "/")
+	for _, seg := range segs {
+		seg = strings.TrimSpace(seg)
+		if strings.HasPrefix(seg, "@") && len(seg) > 1 {
+			return strings.TrimPrefix(seg, "@"), true
+		}
+	}
+	return "", false
 }

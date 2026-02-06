@@ -702,3 +702,67 @@ func TestPostsGet_TableDriven(t *testing.T) {
 		})
 	}
 }
+
+func TestPostsGet_AcceptsURLAndPrefixedIDs(t *testing.T) {
+	var gotPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/refresh_access_token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		}
+
+		gotPaths = append(gotPaths, r.URL.Path)
+		post := map[string]any{
+			"id":         strings.TrimPrefix(r.URL.Path, "/"),
+			"username":   "testuser",
+			"media_type": "TEXT",
+			"text":       "Hello",
+			"permalink":  "https://www.threads.net/t/" + strings.TrimPrefix(r.URL.Path, "/"),
+			"timestamp":  time.Now().UTC().Format(time.RFC3339),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(post)
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	cmd := newPostsGetCmd(f)
+	cmd.SetContext(ctx)
+
+	cases := []string{
+		"12345",
+		"#12345",
+		"post:12345",
+		"https://www.threads.net/t/12345",
+		"https://api.net/t/12345",
+	}
+	for _, c := range cases {
+		io.Out.(*bytes.Buffer).Reset()
+		io.ErrOut.(*bytes.Buffer).Reset()
+
+		cmd2 := newPostsGetCmd(f)
+		cmd2.SetContext(ctx)
+		cmd2.SetArgs([]string{c})
+		if err := cmd2.Execute(); err != nil {
+			t.Fatalf("posts get %q failed: %v", c, err)
+		}
+	}
+
+	// All requests should be for the extracted ID.
+	for _, p := range gotPaths {
+		if p == "/refresh_access_token" {
+			continue
+		}
+		if p != "/12345" {
+			t.Fatalf("expected request path /12345, got %q", p)
+		}
+	}
+}

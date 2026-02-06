@@ -399,7 +399,16 @@ threads help-json
 threads help-json posts get
 ```
 
-IDs also accept common shorthands like `#123` and `post:123` (depending on the command).
+IDs also accept common shorthands like `#123` and `post:123` (depending on the command), and most post-ID arguments accept pasted permalinks like `https://www.threads.net/t/<id>`.
+
+Agent-friendly “best match” search:
+
+```bash
+# Emit just an ID (easy to chain, no jq)
+threads search "coffee" --best --emit id
+```
+
+Convenience: `threads users get @username` delegates to `threads users lookup username`.
 
 ## Shell Completions
 

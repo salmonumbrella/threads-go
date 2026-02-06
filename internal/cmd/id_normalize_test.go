@@ -22,6 +22,10 @@ func TestNormalizeIDArg(t *testing.T) {
 		{name: "missing after colon", input: "post:", kind: "post", wantErr: true, errSubstr: "missing value"},
 		{name: "missing", input: "   ", kind: "post", wantErr: true, errSubstr: "missing post ID"},
 		{name: "unknown prefix ignored", input: "foo:bar", kind: "post", want: "foo:bar"},
+		{name: "url t", input: "https://www.threads.net/t/123", kind: "post", want: "123"},
+		{name: "url t other host", input: "https://api.net/t/12345", kind: "post", want: "12345"},
+		{name: "url profile post", input: "https://www.threads.net/@alice/post/999", kind: "post", want: "999"},
+		{name: "url query id", input: "https://example.com/whatever?id=777", kind: "post", want: "777"},
 	}
 
 	for _, tt := range tests {

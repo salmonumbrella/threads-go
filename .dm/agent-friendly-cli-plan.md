@@ -52,3 +52,10 @@ Goal: make `threads` maximally usable by an automated agent. That means fewer ro
 - Normalize common ID shorthands for agent inputs:
   - `#123`
   - `post:123` / `reply:123` / `user:123` (validated by context)
+
+## Phase 6: URL + Best-Search Desire Paths (Completed)
+
+- Accept pasted permalinks where post IDs are expected (e.g. `https://www.threads.net/t/<id>`).
+- Add non-interactive search selection:
+  - `threads search <query> --best --emit id|json|url`
+- Let `threads users get @username` (and profile URLs) delegate to lookup.

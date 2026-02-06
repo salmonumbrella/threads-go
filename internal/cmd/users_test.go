@@ -1,9 +1,16 @@
 package cmd
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/salmonumbrella/threads-cli/internal/api"
+	"github.com/salmonumbrella/threads-cli/internal/iocontext"
+	"github.com/salmonumbrella/threads-cli/internal/outfmt"
 )
 
 func TestUsersCmd_Structure(t *testing.T) {
@@ -206,5 +213,73 @@ func TestPublicUserToMap(t *testing.T) {
 	}
 	if result["views_count"] != 10000 {
 		t.Errorf("expected views_count=10000, got %v", result["views_count"])
+	}
+}
+
+func TestUsersGet_AcceptsUsernameAndProfileURL(t *testing.T) {
+	lookupCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/refresh_access_token" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "refreshed-token",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+			return
+		}
+
+		if r.URL.Path == "/profile_lookup" {
+			lookupCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"username":            r.URL.Query().Get("username"),
+				"name":                "Public User",
+				"profile_picture_url": "https://example.com/public.jpg",
+				"biography":           "Bio",
+				"is_verified":         false,
+				"follower_count":      1,
+				"likes_count":         2,
+				"quotes_count":        3,
+				"replies_count":       4,
+				"reposts_count":       5,
+				"views_count":         6,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	f, io := newIntegrationTestFactory(t, server.URL)
+
+	ctx := context.Background()
+	ctx = iocontext.WithIO(ctx, io)
+	ctx = outfmt.WithFormat(ctx, "json")
+
+	cmd := newUsersGetCmd(f)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"@publicuser"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("users get @username failed: %v", err)
+	}
+
+	if lookupCalls != 1 {
+		t.Fatalf("expected 1 lookup call, got %d", lookupCalls)
+	}
+
+	// Reset buffers and call with URL form.
+	io.Out.(*bytes.Buffer).Reset()
+	io.ErrOut.(*bytes.Buffer).Reset()
+
+	cmd2 := newUsersGetCmd(f)
+	cmd2.SetContext(ctx)
+	cmd2.SetArgs([]string{"https://www.threads.net/@publicuser"})
+	if err := cmd2.Execute(); err != nil {
+		t.Fatalf("users get profile URL failed: %v", err)
+	}
+
+	if lookupCalls != 2 {
+		t.Fatalf("expected 2 lookup calls, got %d", lookupCalls)
 	}
 }
