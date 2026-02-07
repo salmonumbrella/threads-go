@@ -592,7 +592,6 @@ func runAuthRemove(cmd *cobra.Command, f *Factory, name string) error {
 	}
 
 	if !f.Confirm(ctx, fmt.Sprintf("Remove account %q?", name)) {
-		io := iocontext.GetIO(cmd.Context())
 		fmt.Fprintln(io.Out, "Cancelled.") //nolint:errcheck // Best-effort output
 		return nil
 	}

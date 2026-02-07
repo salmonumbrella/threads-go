@@ -748,9 +748,9 @@ func newPostsQuoteCmd(f *Factory) *cobra.Command {
 						Suggestion: "Use --text for inline text, or --text-file to read from file/stdin",
 					}
 				}
-				txt, err := readTextFileOrStdin(ctx, textFile)
-				if err != nil {
-					return err
+				txt, readErr := readTextFileOrStdin(ctx, textFile)
+				if readErr != nil {
+					return readErr
 				}
 				text = txt
 			}

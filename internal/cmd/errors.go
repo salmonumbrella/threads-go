@@ -68,7 +68,7 @@ func WriteErrorTo(ctx context.Context, w io.Writer, err error) {
 		return
 	}
 
-	_ = writeErrorJSONTo(ctx, w, formatted) // Best-effort output in error paths.
+	_ = writeErrorJSONTo(ctx, w, formatted) //nolint:errcheck // Best-effort output in error paths.
 }
 
 func writeErrorJSONTo(ctx context.Context, w io.Writer, formatted error) error {

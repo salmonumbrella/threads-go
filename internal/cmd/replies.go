@@ -222,9 +222,9 @@ func newRepliesCreateCmd(f *Factory) *cobra.Command {
 				}
 			}
 			if strings.TrimSpace(textFile) != "" {
-				txt, err := readTextFileOrStdin(ctx, textFile)
-				if err != nil {
-					return err
+				txt, readErr := readTextFileOrStdin(ctx, textFile)
+				if readErr != nil {
+					return readErr
 				}
 				text = txt
 			}
