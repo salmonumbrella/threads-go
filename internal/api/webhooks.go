@@ -24,7 +24,7 @@ type WebhookSubscription struct {
 	ID          string         `json:"id"`
 	Object      string         `json:"object"`
 	CallbackURL string         `json:"callback_url"`
-	Fields      []WebhookField `json:"fields,omitempty"`
+	Fields      []WebhookField `json:"fields"`
 	Active      bool           `json:"active"`
 	CreatedTime string         `json:"created_time,omitempty"`
 }
@@ -172,6 +172,16 @@ func (c *Client) ListWebhookSubscriptions(ctx context.Context) (*WebhookSubscrip
 			result.Data = subscriptions
 		} else {
 			return nil, err
+		}
+	}
+
+	// Ensure nil slices are initialized to empty slices for clean JSON serialization.
+	if result.Data == nil {
+		result.Data = []WebhookSubscription{}
+	}
+	for i := range result.Data {
+		if result.Data[i].Fields == nil {
+			result.Data[i].Fields = []WebhookField{}
 		}
 	}
 

@@ -136,6 +136,7 @@ func (c *Client) GetUserPostsWithOptions(ctx context.Context, userID UserID, opt
 		return nil, err
 	}
 
+	normalizePostsResponse(&postsResp)
 	return &postsResp, nil
 }
 
@@ -200,6 +201,7 @@ func (c *Client) GetUserMentions(ctx context.Context, userID UserID, opts *Pagin
 		return nil, err
 	}
 
+	normalizePostsResponse(&postsResp)
 	return &postsResp, nil
 }
 
@@ -306,5 +308,6 @@ func (c *Client) GetUserGhostPosts(ctx context.Context, userID UserID, opts *Pag
 		return nil, err
 	}
 
+	normalizePostsResponse(&postsResp)
 	return &postsResp, nil
 }

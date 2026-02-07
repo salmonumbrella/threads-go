@@ -283,6 +283,7 @@ func (c *Client) GetPublicProfilePosts(ctx context.Context, username string, opt
 		return nil, err
 	}
 
+	normalizePostsResponse(&postsResp)
 	return &postsResp, nil
 }
 
@@ -350,5 +351,6 @@ func (c *Client) GetUserReplies(ctx context.Context, userID UserID, opts *PostsO
 		return nil, err
 	}
 
+	normalizeRepliesResponse(&repliesResp)
 	return &repliesResp, nil
 }

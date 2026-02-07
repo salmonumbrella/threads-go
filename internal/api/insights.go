@@ -140,6 +140,7 @@ func (c *Client) GetPostInsights(ctx context.Context, postID PostID, metrics []s
 		return nil, fmt.Errorf("failed to decode insights response: %w", err)
 	}
 
+	normalizeInsightsResponse(&insightsResponse)
 	return &insightsResponse, nil
 }
 
@@ -209,6 +210,7 @@ func (c *Client) GetPostInsightsWithOptions(ctx context.Context, postID PostID, 
 		return nil, fmt.Errorf("failed to decode insights response: %w", err)
 	}
 
+	normalizeInsightsResponse(&insightsResponse)
 	return &insightsResponse, nil
 }
 
@@ -262,6 +264,7 @@ func (c *Client) GetAccountInsights(ctx context.Context, userID UserID, metrics 
 		return nil, fmt.Errorf("failed to decode insights response: %w", err)
 	}
 
+	normalizeInsightsResponse(&insightsResponse)
 	return &insightsResponse, nil
 }
 
@@ -381,6 +384,7 @@ func (c *Client) GetAccountInsightsWithOptions(ctx context.Context, userID UserI
 		return nil, fmt.Errorf("failed to decode insights response: %w", err)
 	}
 
+	normalizeInsightsResponse(&insightsResponse)
 	return &insightsResponse, nil
 }
 
@@ -501,5 +505,18 @@ func (c *Client) GetAvailableFollowerDemographicsBreakdowns() []FollowerDemograp
 		BreakdownCity,
 		BreakdownAge,
 		BreakdownGender,
+	}
+}
+
+// normalizeInsightsResponse ensures nil slices in the response are initialized
+// to empty slices so JSON serialization produces [] instead of null.
+func normalizeInsightsResponse(r *InsightsResponse) {
+	if r.Data == nil {
+		r.Data = []Insight{}
+	}
+	for i := range r.Data {
+		if r.Data[i].Values == nil {
+			r.Data[i].Values = []Value{}
+		}
 	}
 }

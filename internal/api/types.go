@@ -489,3 +489,27 @@ type GIFAttachment struct {
 	// Provider is the GIF provider (currently only "TENOR" is supported)
 	Provider GIFProvider `json:"provider"`
 }
+
+// normalizePostsResponse ensures nil slices in the response are initialized
+// to empty slices so JSON serialization produces [] instead of null.
+func normalizePostsResponse(r *PostsResponse) {
+	if r.Data == nil {
+		r.Data = []Post{}
+	}
+}
+
+// normalizeRepliesResponse ensures nil slices in the response are initialized
+// to empty slices so JSON serialization produces [] instead of null.
+func normalizeRepliesResponse(r *RepliesResponse) {
+	if r.Data == nil {
+		r.Data = []Post{}
+	}
+}
+
+// normalizeLocationSearchResponse ensures nil slices in the response are initialized
+// to empty slices so JSON serialization produces [] instead of null.
+func normalizeLocationSearchResponse(r *LocationSearchResponse) {
+	if r.Data == nil {
+		r.Data = []Location{}
+	}
+}

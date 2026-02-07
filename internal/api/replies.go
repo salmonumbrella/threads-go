@@ -60,6 +60,7 @@ func (c *Client) fetchRepliesData(path string, params url.Values, postID PostID,
 		return nil, err
 	}
 
+	normalizeRepliesResponse(&repliesResp)
 	return &repliesResp, nil
 }
 

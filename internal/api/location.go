@@ -56,6 +56,7 @@ func (c *Client) SearchLocations(ctx context.Context, query string, latitude, lo
 		return nil, err
 	}
 
+	normalizeLocationSearchResponse(&locationResp)
 	return &locationResp, nil
 }
 

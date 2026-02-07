@@ -17,19 +17,19 @@ type helpJSON struct {
 	Short       string   `json:"short,omitempty"`
 	Long        string   `json:"long,omitempty"`
 	Example     string   `json:"example,omitempty"`
-	Aliases     []string `json:"aliases,omitempty"`
+	Aliases     []string `json:"aliases"`
 
-	Flags          []helpFlag `json:"flags,omitempty"`
-	InheritedFlags []helpFlag `json:"inherited_flags,omitempty"`
+	Flags          []helpFlag `json:"flags"`
+	InheritedFlags []helpFlag `json:"inherited_flags"`
 
-	Subcommands []helpSubcommand `json:"subcommands,omitempty"`
+	Subcommands []helpSubcommand `json:"subcommands"`
 }
 
 type helpSubcommand struct {
 	Name    string   `json:"name"`
 	Use     string   `json:"use"`
 	Short   string   `json:"short,omitempty"`
-	Aliases []string `json:"aliases,omitempty"`
+	Aliases []string `json:"aliases"`
 	Hidden  bool     `json:"hidden,omitempty"`
 }
 
@@ -86,26 +86,38 @@ Examples:
 
 func buildHelpJSON(cmd *cobra.Command) helpJSON {
 	h := helpJSON{
-		CommandPath: cmd.CommandPath(),
-		Use:         cmd.Use,
-		Short:       strings.TrimSpace(cmd.Short),
-		Long:        strings.TrimSpace(cmd.Long),
-		Example:     strings.TrimSpace(cmd.Example),
+		CommandPath:    cmd.CommandPath(),
+		Use:            cmd.Use,
+		Short:          strings.TrimSpace(cmd.Short),
+		Long:           strings.TrimSpace(cmd.Long),
+		Example:        strings.TrimSpace(cmd.Example),
+		Aliases:        []string{},
+		Flags:          []helpFlag{},
+		InheritedFlags: []helpFlag{},
+		Subcommands:    []helpSubcommand{},
 	}
 	if len(cmd.Aliases) > 0 {
 		h.Aliases = append([]string(nil), cmd.Aliases...)
 		sort.Strings(h.Aliases)
 	}
 
-	h.Flags = flagsToHelp(cmd.NonInheritedFlags())
-	h.InheritedFlags = flagsToHelp(cmd.InheritedFlags())
+	if flags := flagsToHelp(cmd.NonInheritedFlags()); len(flags) > 0 {
+		h.Flags = flags
+	}
+	if flags := flagsToHelp(cmd.InheritedFlags()); len(flags) > 0 {
+		h.InheritedFlags = flags
+	}
 
 	for _, sub := range cmd.Commands() {
+		aliases := []string{}
+		if len(sub.Aliases) > 0 {
+			aliases = append([]string(nil), sub.Aliases...)
+		}
 		h.Subcommands = append(h.Subcommands, helpSubcommand{
 			Name:    sub.Name(),
 			Use:     sub.Use,
 			Short:   strings.TrimSpace(sub.Short),
-			Aliases: append([]string(nil), sub.Aliases...),
+			Aliases: aliases,
 			Hidden:  sub.Hidden,
 		})
 	}
